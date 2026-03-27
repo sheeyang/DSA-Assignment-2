@@ -17,6 +17,7 @@ import os
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 SIMPLIFY = os.path.join(SCRIPT_DIR, 'simplify')
 TEST_DIR = os.path.join(SCRIPT_DIR, 'test_cases')
+OUTPUT_DIR = os.path.join(SCRIPT_DIR, 'test_outputs')
 
 # Each entry: (input_file, target_vertices, expected_output_file)
 TEST_CASES = [
@@ -61,6 +62,9 @@ def run_test(input_file, target, expected_file):
     input_path    = os.path.join(TEST_DIR, input_file)
     expected_path = os.path.join(TEST_DIR, expected_file)
 
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    out_path = os.path.join(OUTPUT_DIR, f"{os.path.splitext(input_file)[0]}_n{target}.txt")
+
     # Run simplify (via WSL on Windows, or directly on Unix)
     if sys.platform == 'win32':
         wsl_input = input_path.replace('\\', '/').replace('C:', '/mnt/c').replace('c:', '/mnt/c')
@@ -74,6 +78,8 @@ def run_test(input_file, target, expected_file):
         return False, f"CRASHED (exit {result.returncode})\n  stderr: {result.stderr.strip()}"
 
     actual_output = result.stdout
+    with open(out_path, 'w', encoding='utf-8') as f:
+        f.write(actual_output)
 
     # Parse expected
     with open(expected_path, 'r') as f:
