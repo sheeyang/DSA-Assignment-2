@@ -25,6 +25,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <queue>
 #include <sstream>
 #include <string>
@@ -152,6 +153,7 @@ static constexpr double EPS = 1e-12;
 static constexpr double MAX_DISP_GROWTH_RATIO = 0.20;
 static constexpr int LARGE_RING_EXACT_THRESHOLD = 10000;
 static constexpr double LARGE_RING_OVERLAP_FACTOR = 0.47;
+static constexpr int EXACT_RELAX_TRIGGER_MARGIN = 4;
 
 static bool nearly_same_point(const Point &a, const Point &b)
 {
@@ -868,55 +870,79 @@ static double simplify(std::vector<Ring *> &rings, int target)
     for (auto *r : rings)
         r->use_exact_priority = use_exact_priority;
 
-    // Build initial priority queue
-    MinPQ pq;
-    for (auto *r : rings)
+    const std::vector<double> exact_growth_limits = {
+        MAX_DISP_GROWTH_RATIO,
+        0.50,
+        1.00,
+        std::numeric_limits<double>::infinity()};
+    int exact_growth_stage = 0;
+
+    const int min_total_vertices = 3 * (int)rings.size();
+    const int feasible_target = std::max(target, min_total_vertices);
+
+    while (total > target)
     {
-        enqueue_ring(r, pq);
-    }
-
-    while (!pq.empty() && total > target)
-    {
-        CollapseEntry e = pq.top();
-        pq.pop();
-        Ring *r = vring[e.B];
-        if (!entry_valid(e, r))
-            continue;
-
-        Vertex *B = e.B, *C = e.C;
-        Vertex *A = B->prev, *D = C->next;
-
-        if (r->n_active < 4)
-            continue; // can't reduce below 3 vertices
-
-        if (r->use_exact_priority && r->current_disp > EPS &&
-            e.priority > MAX_DISP_GROWTH_RATIO * r->current_disp)
-            continue;
-
-        if (!topology_ok(A, B, C, D, e.E, grid))
-            continue;
-
-        Vertex *E = do_collapse(r, B, C, e.E, grid);
-        vring[E] = r;
-        total -= 1;
-
-        if (r->use_exact_priority)
+        MinPQ pq;
+        for (auto *r : rings)
         {
-            r->current_disp = e.new_ring_disp;
-            r->generation += 1;
             enqueue_ring(r, pq);
         }
-        else
+
+        bool collapsed_any = false;
+        while (!pq.empty() && total > target)
         {
-            r->accumulated_local_disp += e.priority;
-            // Re-enqueue around the newly created vertex and its neighbors.
-            enqueue_around(A->prev && A->prev->active ? A->prev : nullptr, r, pq);
-            enqueue_around(A, r, pq);
-            enqueue_around(E, r, pq);
-            enqueue_around(D, r, pq);
-            if (D->next && D->next->active)
-                enqueue_around(D->next, r, pq);
+            CollapseEntry e = pq.top();
+            pq.pop();
+            Ring *r = vring[e.B];
+            if (!entry_valid(e, r))
+                continue;
+
+            Vertex *B = e.B, *C = e.C;
+            Vertex *A = B->prev, *D = C->next;
+
+            if (r->n_active < 4)
+                continue; // can't reduce below 3 vertices
+
+            if (r->use_exact_priority && r->current_disp > EPS &&
+                e.priority > exact_growth_limits[exact_growth_stage] * r->current_disp)
+                continue;
+
+            if (!topology_ok(A, B, C, D, e.E, grid))
+                continue;
+
+            Vertex *E = do_collapse(r, B, C, e.E, grid);
+            vring[E] = r;
+            total -= 1;
+            collapsed_any = true;
+
+            if (r->use_exact_priority)
+            {
+                r->current_disp = e.new_ring_disp;
+                r->generation += 1;
+                enqueue_ring(r, pq);
+            }
+            else
+            {
+                r->accumulated_local_disp += e.priority;
+                enqueue_around(A->prev && A->prev->active ? A->prev : nullptr, r, pq);
+                enqueue_around(A, r, pq);
+                enqueue_around(E, r, pq);
+                enqueue_around(D, r, pq);
+                if (D->next && D->next->active)
+                    enqueue_around(D->next, r, pq);
+            }
         }
+
+        if (!use_exact_priority || total <= target)
+            break;
+        if (collapsed_any)
+            continue;
+        if (total - feasible_target <= EXACT_RELAX_TRIGGER_MARGIN)
+            break;
+        if (exact_growth_stage + 1 >= (int)exact_growth_limits.size())
+            break;
+
+        exact_growth_stage += 1;
     }
 
     return 0.0;
