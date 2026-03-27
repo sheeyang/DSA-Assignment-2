@@ -149,6 +149,7 @@ static double poly_area(std::initializer_list<Point> pts)
 }
 
 static constexpr double EPS = 1e-12;
+static constexpr double MAX_DISP_GROWTH_RATIO = 0.20;
 
 static bool nearly_same_point(const Point &a, const Point &b)
 {
@@ -364,8 +365,11 @@ struct Ring
     std::vector<Vertex *> all_verts; // owns all vertices
     std::vector<Point> source_pts;
     int n_active;
+    int generation;
+    double current_disp;
+    bool use_exact_priority;
 
-    Ring() : n_active(0) {}
+    Ring() : n_active(0), generation(0), current_disp(0.0), use_exact_priority(false) {}
     ~Ring()
     {
         for (auto *v : all_verts)
@@ -627,16 +631,39 @@ static bool compute_collapse(const Point &A, const Point &B,
 
 struct CollapseEntry
 {
-    double disp;
+    double priority;
+    double new_ring_disp;
     Vertex *B, *C;
     Point E;
     int vA, vB, vC, vD; // version stamps of A,B,C,D at creation time
+    int ring_generation;
 
-    bool operator>(const CollapseEntry &o) const { return disp > o.disp; }
+    bool operator>(const CollapseEntry &o) const { return priority > o.priority; }
 };
 using MinPQ = std::priority_queue<CollapseEntry,
                                   std::vector<CollapseEntry>,
                                   std::greater<CollapseEntry>>;
+
+static std::vector<Point> active_points_after_collapse(Vertex *B, const Point &E)
+{
+    Vertex *A = B->prev;
+    Vertex *C = B->next;
+    Vertex *D = C->next;
+    std::vector<Point> out;
+    Vertex *cur = A;
+    do
+    {
+        if (cur == B)
+        {
+            out.push_back(E);
+            cur = D;
+            continue;
+        }
+        out.push_back(cur->pt);
+        cur = cur->next;
+    } while (cur != A);
+    return out;
+}
 
 static bool make_entry(Vertex *B, Ring *ring, CollapseEntry &out)
 {
@@ -658,16 +685,28 @@ static bool make_entry(Vertex *B, Ring *ring, CollapseEntry &out)
     if (!compute_collapse(A->pt, B->pt, C->pt, D->pt, E, disp))
         return false;
 
-    out = {disp, B, C, E, A->version, B->version, C->version, D->version};
+    double priority = disp;
+    double new_ring_disp = ring->current_disp;
+    if (ring->use_exact_priority)
+    {
+        std::vector<Point> candidate_pts = active_points_after_collapse(B, E);
+        new_ring_disp = symmetric_difference_area(ring->source_pts, candidate_pts);
+        priority = new_ring_disp - ring->current_disp;
+    }
+
+    out = {priority, new_ring_disp, B, C, E,
+           A->version, B->version, C->version, D->version, ring->generation};
     return true;
 }
 
-static bool entry_valid(const CollapseEntry &e)
+static bool entry_valid(const CollapseEntry &e, const Ring *ring)
 {
     if (!e.B->active || !e.C->active)
         return false;
     Vertex *A = e.B->prev, *D = e.C->next;
     if (!A->active || !D->active)
+        return false;
+    if (ring->use_exact_priority && ring->generation != e.ring_generation)
         return false;
     return A->version == e.vA && e.B->version == e.vB &&
            e.C->version == e.vC && D->version == e.vD;
@@ -769,6 +808,20 @@ static void enqueue_around(Vertex *v, Ring *ring, MinPQ &pq)
     }
 }
 
+static void enqueue_ring(Ring *ring, MinPQ &pq)
+{
+    if (!ring || ring->n_active < 4)
+        return;
+    for (auto *v : ring->all_verts)
+    {
+        if (!v->active)
+            continue;
+        CollapseEntry e;
+        if (make_entry(v, ring, e))
+            pq.push(e);
+    }
+}
+
 // ============================================================================
 // Main simplification driver
 // ============================================================================
@@ -808,37 +861,34 @@ static double simplify(std::vector<Ring *> &rings, int target)
                 grid.add(v, v->next);
     }
 
+    bool use_exact_priority = (rings.size() > 1);
+    for (auto *r : rings)
+        r->use_exact_priority = use_exact_priority;
+
     // Build initial priority queue
     MinPQ pq;
     for (auto *r : rings)
     {
-        if (r->n_active < 4)
-            continue;
-        for (auto *v : r->all_verts)
-        {
-            if (!v->active)
-                continue;
-            CollapseEntry e;
-            if (make_entry(v, r, e))
-                pq.push(e);
-        }
+        enqueue_ring(r, pq);
     }
-
-    double total_disp = 0.0;
 
     while (!pq.empty() && total > target)
     {
         CollapseEntry e = pq.top();
         pq.pop();
-        if (!entry_valid(e))
+        Ring *r = vring[e.B];
+        if (!entry_valid(e, r))
             continue;
 
         Vertex *B = e.B, *C = e.C;
         Vertex *A = B->prev, *D = C->next;
-        Ring *r = vring[B];
 
         if (r->n_active < 4)
             continue; // can't reduce below 3 vertices
+
+        if (r->use_exact_priority && r->current_disp > EPS &&
+            e.priority > MAX_DISP_GROWTH_RATIO * r->current_disp)
+            continue;
 
         if (!topology_ok(A, B, C, D, e.E, grid))
             continue;
@@ -846,18 +896,26 @@ static double simplify(std::vector<Ring *> &rings, int target)
         Vertex *E = do_collapse(r, B, C, e.E, grid);
         vring[E] = r;
         total -= 1;
-        total_disp += e.disp;
 
-        // Re-enqueue around the newly created vertex and its neighbors.
-        enqueue_around(A->prev && A->prev->active ? A->prev : nullptr, r, pq);
-        enqueue_around(A, r, pq);
-        enqueue_around(E, r, pq);
-        enqueue_around(D, r, pq);
-        if (D->next && D->next->active)
-            enqueue_around(D->next, r, pq);
+        if (r->use_exact_priority)
+        {
+            r->current_disp = e.new_ring_disp;
+            r->generation += 1;
+            enqueue_ring(r, pq);
+        }
+        else
+        {
+            // Re-enqueue around the newly created vertex and its neighbors.
+            enqueue_around(A->prev && A->prev->active ? A->prev : nullptr, r, pq);
+            enqueue_around(A, r, pq);
+            enqueue_around(E, r, pq);
+            enqueue_around(D, r, pq);
+            if (D->next && D->next->active)
+                enqueue_around(D->next, r, pq);
+        }
     }
 
-    return total_disp;
+    return 0.0;
 }
 
 // ============================================================================
