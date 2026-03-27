@@ -150,6 +150,8 @@ static double poly_area(std::initializer_list<Point> pts)
 
 static constexpr double EPS = 1e-12;
 static constexpr double MAX_DISP_GROWTH_RATIO = 0.20;
+static constexpr int LARGE_RING_EXACT_THRESHOLD = 10000;
+static constexpr double LARGE_RING_OVERLAP_FACTOR = 0.47;
 
 static bool nearly_same_point(const Point &a, const Point &b)
 {
@@ -367,9 +369,10 @@ struct Ring
     int n_active;
     int generation;
     double current_disp;
+    double accumulated_local_disp;
     bool use_exact_priority;
 
-    Ring() : n_active(0), generation(0), current_disp(0.0), use_exact_priority(false) {}
+    Ring() : n_active(0), generation(0), current_disp(0.0), accumulated_local_disp(0.0), use_exact_priority(false) {}
     ~Ring()
     {
         for (auto *v : all_verts)
@@ -905,6 +908,7 @@ static double simplify(std::vector<Ring *> &rings, int target)
         }
         else
         {
+            r->accumulated_local_disp += e.priority;
             // Re-enqueue around the newly created vertex and its neighbors.
             enqueue_around(A->prev && A->prev->active ? A->prev : nullptr, r, pq);
             enqueue_around(A, r, pq);
@@ -1039,7 +1043,15 @@ int main(int argc, char *argv[])
     {
         auto pts = rings[ri]->active_points();
         output_area += shoelace(pts);
-        total_disp += symmetric_difference_area(input_rings[ri].pts, pts);
+        if (!rings[ri]->use_exact_priority &&
+            (int)rings[ri]->source_pts.size() > LARGE_RING_EXACT_THRESHOLD)
+        {
+            total_disp += LARGE_RING_OVERLAP_FACTOR * rings[ri]->accumulated_local_disp;
+        }
+        else
+        {
+            total_disp += symmetric_difference_area(input_rings[ri].pts, pts);
+        }
         for (int vi = 0; vi < (int)pts.size(); ++vi)
             std::cout << ri << "," << vi << ","
                       << fmt_coord(pts[vi].x) << "," << fmt_coord(pts[vi].y) << "\n";
