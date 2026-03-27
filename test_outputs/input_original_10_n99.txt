@@ -100,4 +100,4 @@ ring_id,vertex_id,x,y
 0,98,-1274958.54697983,1069831.45900994
 Total signed area in input: 5.066884e+08
 Total signed area in output: 5.066884e+08
-Total areal displacement: 2.538401e+07
+Total areal displacement: 1.311198e+07

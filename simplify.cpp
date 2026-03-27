@@ -18,6 +18,7 @@
  */
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdlib>
 #include <cstdint>
@@ -147,6 +148,204 @@ static double poly_area(std::initializer_list<Point> pts)
     return s * 0.5;
 }
 
+static constexpr double EPS = 1e-12;
+
+static bool nearly_same_point(const Point &a, const Point &b)
+{
+    return std::abs(a.x - b.x) <= EPS && std::abs(a.y - b.y) <= EPS;
+}
+
+static std::vector<Point> normalize_polygon(std::vector<Point> pts)
+{
+    if (pts.empty())
+        return pts;
+
+    std::vector<Point> dedup;
+    dedup.reserve(pts.size());
+    for (const auto &pt : pts)
+    {
+        if (dedup.empty() || !nearly_same_point(dedup.back(), pt))
+            dedup.push_back(pt);
+    }
+    if (dedup.size() >= 2 && nearly_same_point(dedup.front(), dedup.back()))
+        dedup.pop_back();
+
+    bool changed = true;
+    while (changed && dedup.size() >= 3)
+    {
+        changed = false;
+        std::vector<Point> out;
+        out.reserve(dedup.size());
+        int n = (int)dedup.size();
+        for (int i = 0; i < n; ++i)
+        {
+            const Point &prev = dedup[(i - 1 + n) % n];
+            const Point &cur = dedup[i];
+            const Point &next = dedup[(i + 1) % n];
+            if (std::abs(cross2d(prev, cur, next)) <= EPS)
+            {
+                changed = true;
+                continue;
+            }
+            out.push_back(cur);
+        }
+        dedup.swap(out);
+    }
+    return dedup;
+}
+
+static bool point_in_triangle(const Point &p, const Point &a,
+                              const Point &b, const Point &c)
+{
+    double c1 = cross2d(a, b, p);
+    double c2 = cross2d(b, c, p);
+    double c3 = cross2d(c, a, p);
+    bool has_neg = (c1 < -EPS) || (c2 < -EPS) || (c3 < -EPS);
+    bool has_pos = (c1 > EPS) || (c2 > EPS) || (c3 > EPS);
+    return !(has_neg && has_pos);
+}
+
+static std::vector<std::array<Point, 3>> triangulate_polygon(const std::vector<Point> &poly_in)
+{
+    std::vector<Point> poly = normalize_polygon(poly_in);
+    std::vector<std::array<Point, 3>> tris;
+    int n = (int)poly.size();
+    if (n < 3)
+        return tris;
+    if (n == 3)
+    {
+        tris.push_back({poly[0], poly[1], poly[2]});
+        return tris;
+    }
+
+    double orient = shoelace(poly);
+    std::vector<int> idx(n);
+    for (int i = 0; i < n; ++i)
+        idx[i] = i;
+
+    int guard = 0;
+    while (idx.size() > 3 && guard < n * n)
+    {
+        bool clipped = false;
+        int m = (int)idx.size();
+        for (int i = 0; i < m; ++i)
+        {
+            int ip = idx[(i - 1 + m) % m];
+            int ic = idx[i];
+            int in = idx[(i + 1) % m];
+            const Point &a = poly[ip];
+            const Point &b = poly[ic];
+            const Point &c = poly[in];
+            double turn = cross2d(a, b, c);
+            if ((orient > 0.0 && turn <= EPS) || (orient < 0.0 && turn >= -EPS))
+                continue;
+
+            bool contains = false;
+            for (int j = 0; j < m; ++j)
+            {
+                int iv = idx[j];
+                if (iv == ip || iv == ic || iv == in)
+                    continue;
+                if (point_in_triangle(poly[iv], a, b, c))
+                {
+                    contains = true;
+                    break;
+                }
+            }
+            if (contains)
+                continue;
+
+            tris.push_back({a, b, c});
+            idx.erase(idx.begin() + i);
+            clipped = true;
+            break;
+        }
+        if (!clipped)
+            break;
+        ++guard;
+    }
+
+    if (idx.size() == 3)
+        tris.push_back({poly[idx[0]], poly[idx[1]], poly[idx[2]]});
+    return tris;
+}
+
+static Point segment_line_intersection(const Point &p1, const Point &p2,
+                                       const Point &a, const Point &b)
+{
+    Point out = p1;
+    line_isect(make_line(p1, p2), make_line(a, b), out);
+    return out;
+}
+
+static std::vector<Point> clip_polygon_halfplane(const std::vector<Point> &subject,
+                                                 const Point &a, const Point &b,
+                                                 double orient)
+{
+    std::vector<Point> out;
+    if (subject.empty())
+        return out;
+
+    auto inside = [&](const Point &p)
+    {
+        double side = cross2d(a, b, p);
+        return orient >= 0.0 ? side >= -EPS : side <= EPS;
+    };
+
+    Point prev = subject.back();
+    bool prev_in = inside(prev);
+    for (const Point &cur : subject)
+    {
+        bool cur_in = inside(cur);
+        if (cur_in != prev_in)
+            out.push_back(segment_line_intersection(prev, cur, a, b));
+        if (cur_in)
+            out.push_back(cur);
+        prev = cur;
+        prev_in = cur_in;
+    }
+    return out;
+}
+
+static double triangle_intersection_area(const std::array<Point, 3> &lhs,
+                                         const std::array<Point, 3> &rhs)
+{
+    std::vector<Point> clipped = {lhs[0], lhs[1], lhs[2]};
+    double rhs_orient = poly_area({rhs[0], rhs[1], rhs[2]});
+    for (int i = 0; i < 3 && !clipped.empty(); ++i)
+        clipped = clip_polygon_halfplane(clipped, rhs[i], rhs[(i + 1) % 3], rhs_orient);
+    if (clipped.size() < 3)
+        return 0.0;
+    return std::abs(shoelace(clipped));
+}
+
+static double polygon_intersection_area(const std::vector<Point> &lhs,
+                                        const std::vector<Point> &rhs)
+{
+    auto lhs_tris = triangulate_polygon(lhs);
+    auto rhs_tris = triangulate_polygon(rhs);
+    double area = 0.0;
+    for (const auto &lt : lhs_tris)
+        for (const auto &rt : rhs_tris)
+            area += triangle_intersection_area(lt, rt);
+    return area;
+}
+
+static double symmetric_difference_area(const std::vector<Point> &lhs,
+                                        const std::vector<Point> &rhs)
+{
+    std::vector<Point> a = normalize_polygon(lhs);
+    std::vector<Point> b = normalize_polygon(rhs);
+    if (a.size() < 3 || b.size() < 3)
+        return 0.0;
+
+    double area_a = std::abs(shoelace(a));
+    double area_b = std::abs(shoelace(b));
+    double inter = polygon_intersection_area(a, b);
+    double sym = area_a + area_b - 2.0 * inter;
+    return sym > 0.0 ? sym : 0.0;
+}
+
 // ============================================================================
 // Ring: circular doubly-linked list
 // ============================================================================
@@ -163,6 +362,7 @@ struct Vertex
 struct Ring
 {
     std::vector<Vertex *> all_verts; // owns all vertices
+    std::vector<Point> source_pts;
     int n_active;
 
     Ring() : n_active(0) {}
@@ -176,6 +376,7 @@ struct Ring
 
     void build(const std::vector<Point> &pts)
     {
+        source_pts = pts;
         n_active = (int)pts.size();
         all_verts.resize(n_active);
         for (int i = 0; i < n_active; ++i)
@@ -647,7 +848,7 @@ static double simplify(std::vector<Ring *> &rings, int target)
         total -= 1;
         total_disp += e.disp;
 
-        // Re-enqueue around the newly created vertex and its neighbors
+        // Re-enqueue around the newly created vertex and its neighbors.
         enqueue_around(A->prev && A->prev->active ? A->prev : nullptr, r, pq);
         enqueue_around(A, r, pq);
         enqueue_around(E, r, pq);
@@ -770,16 +971,17 @@ int main(int argc, char *argv[])
         rings.push_back(r);
     }
 
-    // Simplify and accumulate areal displacement
-    double total_disp = simplify(rings, target);
+    simplify(rings, target);
 
     // Output
     std::cout << "ring_id,vertex_id,x,y\n";
     double output_area = 0.0;
+    double total_disp = 0.0;
     for (int ri = 0; ri < (int)rings.size(); ++ri)
     {
         auto pts = rings[ri]->active_points();
         output_area += shoelace(pts);
+        total_disp += symmetric_difference_area(input_rings[ri].pts, pts);
         for (int vi = 0; vi < (int)pts.size(); ++vi)
             std::cout << ri << "," << vi << ","
                       << fmt_coord(pts[vi].x) << "," << fmt_coord(pts[vi].y) << "\n";
