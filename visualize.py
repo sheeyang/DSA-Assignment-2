@@ -127,7 +127,7 @@ def draw_rings(ax, rings, title, show_vertices=True):
 
 # ── main ─────────────────────────────────────────────────────────────────────
 
-def visualize(name):
+def visualize(name, open_after=True):
     if name not in TEST_CASES:
         print(f"Unknown test: {name!r}")
         print("Available:", ', '.join(sorted(TEST_CASES)))
@@ -173,19 +173,21 @@ def visualize(name):
     plt.tight_layout()
 
     # Save to file (works in all environments), then try to open it
-    out_img = os.path.join(ROOT, f'viz_{name}.png')
+    os.makedirs(os.path.join(ROOT, 'visualization'), exist_ok=True)
+    out_img = os.path.join(ROOT, 'visualization', f'viz_{name}.png')
     fig.savefig(out_img, dpi=150, bbox_inches='tight')
     print(f"Saved: {out_img}")
-    try:
-        import subprocess as _sp, sys as _sys
-        if _sys.platform == 'win32':
-            _sp.Popen(['explorer', out_img])
-        elif _sys.platform == 'darwin':
-            _sp.Popen(['open', out_img])
-        else:
-            _sp.Popen(['xdg-open', out_img])
-    except Exception:
-        pass
+    if open_after:
+        try:
+            import subprocess as _sp, sys as _sys
+            if _sys.platform == 'win32':
+                _sp.Popen(['explorer', out_img])
+            elif _sys.platform == 'darwin':
+                _sp.Popen(['open', out_img])
+            else:
+                _sp.Popen(['xdg-open', out_img])
+        except Exception:
+            pass
     plt.close(fig)
 
 
@@ -194,7 +196,12 @@ if __name__ == '__main__':
         print("Available test cases:")
         for name, (target, inp, exp) in sorted(TEST_CASES.items()):
             print(f"  {name}  (target={target})")
-        print("\nUsage: python visualize.py <test_name>")
+        print("\nUsage: python visualize.py <test_name> [--open]")
+        print("  --open   open the PNG after saving (default: opens automatically)")
+        print("  --no-open  save without opening")
         sys.exit(0)
 
-    visualize(sys.argv[1])
+    args = sys.argv[1:]
+    open_after = '--no-open' not in args
+    name = next(a for a in args if not a.startswith('--'))
+    visualize(name, open_after=open_after)
