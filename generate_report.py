@@ -20,6 +20,7 @@ import csv
 import base64
 import html
 import json
+import re
 from datetime import datetime
 
 ROOT        = os.path.dirname(os.path.abspath(__file__))
@@ -103,6 +104,79 @@ def fmt_f(val, decimals=3):
 def h(text):
     return html.escape(str(text))
 
+
+def fmt_result_metric(val):
+    if val in (None, ''):
+        return '—'
+    return fmt_sci(val)
+
+
+def fmt_result_diff(actual, expected):
+    if actual in (None, '') or expected in (None, ''):
+        return '—'
+    try:
+        return f'{float(actual) - float(expected):+.3e}'
+    except (ValueError, TypeError):
+        return '—'
+
+
+def first_present(*values):
+    for value in values:
+        if value not in (None, ''):
+            return value
+    return None
+
+
+def extract_metric(message, *patterns):
+    if not message:
+        return None
+    for pattern in patterns:
+        match = re.search(pattern, message)
+        if match:
+            return match.group(1)
+    return None
+
+
+def result_metrics(entry):
+    message = entry.get('message', '')
+    return {
+        'input_area': first_present(
+            entry.get('input_area_actual'),
+            extract_metric(
+                message,
+                r'input=([-+0-9.eE]+)',
+                r'area_in=([-+0-9.eE]+)',
+                r'area_in mismatch: got ([-+0-9.eE]+)',
+            ),
+        ),
+        'output_area': first_present(
+            entry.get('output_area_actual'),
+            extract_metric(
+                message,
+                r'output=([-+0-9.eE]+)',
+                r'area_out=([-+0-9.eE]+)',
+                r'area_out mismatch: got ([-+0-9.eE]+)',
+            ),
+        ),
+        'actual_displacement': first_present(
+            entry.get('displacement_actual'),
+            extract_metric(
+                message,
+                r'disp=([-+0-9.eE]+)',
+                r'displacement WORSE: got ([-+0-9.eE]+)',
+            ),
+        ),
+        'expected_displacement': first_present(
+            entry.get('displacement_expected'),
+            extract_metric(
+                message,
+                r'expected=([-+0-9.eE]+)',
+                r'\(expected ([-+0-9.eE]+)\)',
+                r'displacement WORSE: got [-+0-9.eE]+, expected <= ([-+0-9.eE]+)',
+            ),
+        ),
+    }
+
 # ── test results ─────────────────────────────────────────────────────────────────────
 
 def load_test_results():
@@ -129,24 +203,35 @@ def test_results_section(data):
     badge_text  = 'ALL PASS' if failed == 0 else f'{failed} FAILED'
     better_note = f' &nbsp;<span style="background:#1565C0;color:#fff;padding:.2rem .5rem;border-radius:4px;font-size:.8rem">{better} BETTER</span>' if better else ''
 
-    def rows_html(entries, show_validate=True):
+    def status_cell_html(status, show_validate=True):
+        if status == 'BETTER':
+            cls, icon = 'better', '\u2605'  # ★
+        elif status in ('PASS', 'OK'):
+            cls, icon = 'pass', '✔'
+        else:
+            cls, icon = 'fail', '✘'
+        if show_validate:
+            return f'<td class="{cls}">{icon} {h(status)}</td>'
+        custom_cls = 'ok' if status == 'OK' else cls
+        return f'<td class="{custom_cls}">{icon} {h(status)}</td>'
+
+    def rows_html(entries, show_validate=True, include_expected=False):
         out = ''
         for r in entries:
             status = r.get('status', '')
-            if status == 'BETTER':
-                cls, icon = 'better', '\u2605'  # ★
-            elif status in ('PASS', 'OK'):
-                cls, icon = 'pass', '✔'
-            else:
-                cls, icon = 'fail', '✘'
-            msg = h(r.get('message', ''))
-            validate_cell = f'<td class="{cls}">{icon} {h(status)}</td>' if show_validate else f'<td class="ok">{icon} {h(status)}</td>'
-            out += f'''<tr>
+            metrics = result_metrics(r)
+            row = f'''<tr>
               <td><a href="#viz-{h(r["name"])}">{h(r["name"])}</a></td>
               <td>{h(r["target"])}</td>
-              {validate_cell}
-              <td class="msg">{msg}</td>
+              <td>{fmt_result_metric(metrics["input_area"])}</td>
+              <td>{fmt_result_metric(metrics["output_area"])}</td>
+              <td>{fmt_result_metric(metrics["actual_displacement"])}</td>'''
+            if include_expected:
+                row += f'''\n              <td>{fmt_result_metric(metrics["expected_displacement"])}</td>'''
+            row += f'''\n              <td>{fmt_result_diff(metrics["actual_displacement"], metrics["expected_displacement"])}</td>
+              {status_cell_html(status, show_validate)}
             </tr>'''
+            out += row
         return out
 
     provided = data.get('provided', [])
@@ -159,15 +244,19 @@ def test_results_section(data):
                color:#fff;padding:.2rem .7rem;border-radius:4px">{passed}/{total} &nbsp;{badge_text}</span>{better_note}
       </h2>
       <h3>Provided test cases</h3>
-      <table>
-        <thead><tr><th>Test case</th><th>Target</th><th>Status</th><th>Detail</th></tr></thead>
-        <tbody>{rows_html(provided, show_validate=True)}</tbody>
-      </table>
+      <div class="table-wrap">
+        <table>
+                    <thead><tr><th>Test case</th><th>Target</th><th>Input area</th><th>Output area</th><th>Actual displacement</th><th>Expected displacement</th><th>Diff</th><th>Status</th></tr></thead>
+          <tbody>{rows_html(provided, show_validate=True, include_expected=True)}</tbody>
+        </table>
+      </div>
       <h3 style="margin-top:1.2rem">Custom test cases</h3>
-      <table>
-        <thead><tr><th>Test case</th><th>Target</th><th>Status</th><th>Detail</th></tr></thead>
-        <tbody>{rows_html(custom, show_validate=False)}</tbody>
-      </table>
+      <div class="table-wrap">
+        <table>
+                    <thead><tr><th>Test case</th><th>Target</th><th>Input area</th><th>Output area</th><th>Displacement</th><th>Diff</th><th>Status</th></tr></thead>
+          <tbody>{rows_html(custom, show_validate=False, include_expected=False)}</tbody>
+        </table>
+      </div>
     </section>'''
 
 # ── data loading ──────────────────────────────────────────────────────────────
@@ -255,7 +344,7 @@ def viz_card(name, is_custom=False):
         desc_html = (
             f'<div class="desc"><b>{h(short)}</b>'
             + (f'<p><b>Property:</b> {h(prop)}</p>' if prop else '')
-            + (f'<p><b>Challenge:</b> {h(challenge)}</p>' if challenge else '')
+            + (f'<p><b>Challenge:</b> {h(challenge)}</p>' if is_custom and challenge else '')
             + '</div>'
         )
     else:
@@ -326,6 +415,7 @@ th { background: #e3f2fd; text-align: left; padding: .45rem .7rem; border: 1px s
 td { padding: .4rem .7rem; border: 1px solid var(--border); }
 tr:nth-child(even) td { background: #fafafa; }
 tr:hover td { background: #e8f4fd; }
+.table-wrap { overflow-x: auto; }
 
 /* plots */
 .plot-wrap { text-align: center; margin: .5rem 0 1rem; }
@@ -359,7 +449,6 @@ td.pass   { color: #2e7d32; font-weight: 600; }
 td.better { color: #1565C0; font-weight: 600; }
 td.fail   { color: #c62828; font-weight: 600; }
 td.ok     { color: #1565C0; font-weight: 600; }
-td.msg    { font-family: monospace; font-size: .78rem; color: var(--muted); word-break: break-all; }
 
 /* misc */
 .missing { color: var(--muted); font-style: italic; padding: .5rem; }
@@ -472,15 +561,16 @@ def build_html():
         discussion_sec = ''
 
     # ── dataset descriptions section ──────────────────────────────────────────
-    def desc_rows(descs, names):
+    def desc_rows(descs, names, include_challenge=True):
         rows = ''
         for name in names:
             d = descs.get(name, {})
             rows += (f'<tr>'
                      f'<td><a href="#viz-{h(name)}">{h(name)}</a></td>'
-                     f'<td>{h(d.get("property", "—"))}</td>'
-                     f'<td>{h(d.get("challenge", "—"))}</td>'
-                     f'</tr>')
+                     f'<td>{h(d.get("property", "—"))}</td>')
+            if include_challenge:
+                rows += f'<td>{h(d.get("challenge", "—"))}</td>'
+            rows += '</tr>'
         return rows
 
     _, _, _ = load_descriptions()[:3]   # already loaded above
@@ -488,15 +578,19 @@ def build_html():
     <section id="datasets">
       <h2>Dataset Descriptions</h2>
       <h3>Custom test cases</h3>
-      <table>
-        <thead><tr><th>Name</th><th>Targeted property</th><th>Why it is challenging</th></tr></thead>
-        <tbody>{desc_rows(CUSTOM_DESCS, CUSTOM_CASES)}</tbody>
-      </table>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Name</th><th>Targeted property</th><th>Why it is challenging</th></tr></thead>
+          <tbody>{desc_rows(CUSTOM_DESCS, CUSTOM_CASES, include_challenge=True)}</tbody>
+        </table>
+      </div>
       <h3 style="margin-top:1.2rem">Provided test cases</h3>
-      <table>
-        <thead><tr><th>Name</th><th>Targeted property</th><th>Why it is challenging</th></tr></thead>
-        <tbody>{desc_rows(PROVIDED_DESCS, PROVIDED_CASES)}</tbody>
-      </table>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Name</th><th>Targeted property</th></tr></thead>
+          <tbody>{desc_rows(PROVIDED_DESCS, PROVIDED_CASES, include_challenge=False)}</tbody>
+        </table>
+      </div>
     </section>'''
 
     provided_cards = ''.join(viz_card(n, is_custom=False) for n in PROVIDED_CASES)
@@ -564,7 +658,8 @@ def main():
     print(f'Saved: {out_path}  ({size_kb:.0f} KB)')
 
     # Try to open in browser
-    import subprocess, sys
+    import subprocess
+    import sys
     try:
         if sys.platform == 'win32':
             subprocess.Popen(['explorer', out_path])

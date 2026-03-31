@@ -43,6 +43,22 @@ TEST_CASES = [
 
 AREA_REL_TOL = 1e-6   # relative tolerance for area comparison
 
+
+def make_result_details(message, *,
+                        input_area_actual=None, input_area_expected=None,
+                        output_area_actual=None, output_area_expected=None,
+                        displacement_actual=None, displacement_expected=None):
+    """Build a structured result payload for JSON/report generation."""
+    return {
+        'message': message,
+        'input_area_actual': input_area_actual,
+        'input_area_expected': input_area_expected,
+        'output_area_actual': output_area_actual,
+        'output_area_expected': output_area_expected,
+        'displacement_actual': displacement_actual,
+        'displacement_expected': displacement_expected,
+    }
+
 def parse_summary(text):
     """Extract the three summary values from output text."""
     def get(pattern):
@@ -78,7 +94,9 @@ def run_test(input_file, target, expected_file):
 
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
     if result.returncode != 0:
-        return False, f"CRASHED (exit {result.returncode})\n  stderr: {result.stderr.strip()}"
+        return 'FAIL', make_result_details(
+            f"CRASHED (exit {result.returncode})\n  stderr: {result.stderr.strip()}"
+        )
 
     actual_output = result.stdout
     with open(out_path, 'w', encoding='utf-8') as f:
@@ -91,12 +109,27 @@ def run_test(input_file, target, expected_file):
     try:
         exp_area_in, exp_area_out, exp_disp = parse_summary(expected_output)
     except ValueError as e:
-        return False, f"Could not parse expected output: {e}"
+        return 'FAIL', make_result_details(f"Could not parse expected output: {e}")
 
     try:
         act_area_in, act_area_out, act_disp = parse_summary(actual_output)
     except ValueError as e:
-        return False, f"Could not parse actual output: {e}"
+        return 'FAIL', make_result_details(
+            f"Could not parse actual output: {e}",
+            input_area_expected=exp_area_in,
+            output_area_expected=exp_area_out,
+            displacement_expected=exp_disp,
+        )
+
+    details = make_result_details(
+        '',
+        input_area_actual=act_area_in,
+        input_area_expected=exp_area_in,
+        output_area_actual=act_area_out,
+        output_area_expected=exp_area_out,
+        displacement_actual=act_disp,
+        displacement_expected=exp_disp,
+    )
 
     failures = []
 
@@ -114,12 +147,20 @@ def run_test(input_file, target, expected_file):
         )
 
     if failures:
-        return 'FAIL', '\n  '.join(failures)
+        details['message'] = '\n  '.join(failures)
+        return 'FAIL', details
 
     if act_disp < exp_disp * (1 - AREA_REL_TOL):
-        return 'BETTER', f'area_in={act_area_in:.6e}  disp={act_disp:.6e}  (expected {exp_disp:.6e})'
+        details['message'] = (
+            f'input={act_area_in:.6e}  output={act_area_out:.6e}  '
+            f'disp={act_disp:.6e}  expected={exp_disp:.6e}'
+        )
+        return 'BETTER', details
 
-    return 'PASS', f'area_in={act_area_in:.6e}  disp={act_disp:.6e}'
+    details['message'] = (
+        f'input={act_area_in:.6e}  output={act_area_out:.6e}  disp={act_disp:.6e}'
+    )
+    return 'PASS', details
 
 
 # Custom test cases (no expected output — just run and save)
@@ -146,16 +187,23 @@ def run_custom(input_file, target):
 
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
     if result.returncode != 0:
-        return False, f"CRASHED (exit {result.returncode})\n  stderr: {result.stderr.strip()}"
+        return False, make_result_details(
+            f"CRASHED (exit {result.returncode})\n  stderr: {result.stderr.strip()}"
+        )
 
     with open(out_path, 'w', encoding='utf-8') as f:
         f.write(result.stdout)
 
     try:
-        _, _, disp = parse_summary(result.stdout)
-        return True, f'disp={disp:.6e}'
+        area_in, area_out, disp = parse_summary(result.stdout)
+        return True, make_result_details(
+            f'input={area_in:.6e}  output={area_out:.6e}  disp={disp:.6e}',
+            input_area_actual=area_in,
+            output_area_actual=area_out,
+            displacement_actual=disp,
+        )
     except ValueError:
-        return True, 'ran OK (no summary parsed)'
+        return True, make_result_details('ran OK (no summary parsed)')
 
 
 def main():
@@ -171,18 +219,20 @@ def main():
         name = input_file.replace('input_', '').replace('.csv', '')
         display = name + f' (n={target})'
         try:
-            status, msg = run_test(input_file, target, expected_file)
+            status, details = run_test(input_file, target, expected_file)
         except subprocess.TimeoutExpired:
-            status, msg = 'FAIL', 'TIMEOUT'
+            status, details = 'FAIL', make_result_details('TIMEOUT')
         except Exception as e:
-            status, msg = 'FAIL', str(e)
+            status, details = 'FAIL', make_result_details(str(e))
+
+        msg = details['message']
 
         print(f"{display:<{col}}  {status}  {msg}")
         if status != 'FAIL':
             passed += 1
         else:
             failed += 1
-        provided_results.append({'name': name, 'target': target, 'status': status, 'message': msg})
+        provided_results.append({'name': name, 'target': target, 'status': status, **details})
 
     print('-' * (col + 30))
     print(f"Results: {passed} passed, {failed} failed out of {passed + failed} tests")
@@ -197,14 +247,15 @@ def main():
         name = input_file.replace('input_', '').replace('.csv', '')
         display = name + f' (n={target})'
         try:
-            ok, msg = run_custom(input_file, target)
+            ok, details = run_custom(input_file, target)
         except subprocess.TimeoutExpired:
-            ok, msg = False, 'TIMEOUT'
+            ok, details = False, make_result_details('TIMEOUT')
         except Exception as e:
-            ok, msg = False, str(e)
+            ok, details = False, make_result_details(str(e))
+        msg = details['message']
         status = 'OK' if ok else 'FAIL'
         print(f"{display:<{col}}  {status}  {msg}")
-        custom_results.append({'name': name, 'target': target, 'status': status, 'message': msg})
+        custom_results.append({'name': name, 'target': target, 'status': status, **details})
 
     print('-' * (col + 30))
 
