@@ -1,0 +1,131 @@
+{
+  "provided": [
+    {
+      "name": "rectangle_with_two_holes",
+      "target": 7,
+      "status": "PASS",
+      "message": "area_in=3.210000e+02  disp=1.600000e+00"
+    },
+    {
+      "name": "cushion_with_hexagonal_hole",
+      "target": 13,
+      "status": "BETTER",
+      "message": "area_in=9.450000e+03  disp=3.758356e+02  (expected 3.840642e+02)"
+    },
+    {
+      "name": "blob_with_two_holes",
+      "target": 17,
+      "status": "BETTER",
+      "message": "area_in=9.210000e+05  disp=5.521891e+04  (expected 8.289171e+04)"
+    },
+    {
+      "name": "wavy_with_three_holes",
+      "target": 21,
+      "status": "BETTER",
+      "message": "area_in=9.845000e+05  disp=6.918077e+04  (expected 1.228333e+05)"
+    },
+    {
+      "name": "lake_with_two_islands",
+      "target": 17,
+      "status": "BETTER",
+      "message": "area_in=2.840000e+05  disp=8.342281e+04  (expected 1.167118e+05)"
+    },
+    {
+      "name": "original_01",
+      "target": 99,
+      "status": "BETTER",
+      "message": "area_in=1.305116e+09  disp=8.117930e+06  (expected 9.624085e+06)"
+    },
+    {
+      "name": "original_02",
+      "target": 99,
+      "status": "BETTER",
+      "message": "area_in=9.432032e+08  disp=7.874170e+06  (expected 9.682727e+06)"
+    },
+    {
+      "name": "original_03",
+      "target": 99,
+      "status": "BETTER",
+      "message": "area_in=5.540650e+08  disp=1.094104e+08  (expected 1.102185e+08)"
+    },
+    {
+      "name": "original_04",
+      "target": 99,
+      "status": "BETTER",
+      "message": "area_in=3.115586e+07  disp=7.508634e+06  (expected 8.798685e+06)"
+    },
+    {
+      "name": "original_05",
+      "target": 99,
+      "status": "BETTER",
+      "message": "area_in=4.982084e+08  disp=4.308617e+06  (expected 4.789279e+06)"
+    },
+    {
+      "name": "original_06",
+      "target": 99,
+      "status": "BETTER",
+      "message": "area_in=3.406772e+09  disp=6.921149e+07  (expected 9.822463e+07)"
+    },
+    {
+      "name": "original_07",
+      "target": 99,
+      "status": "BETTER",
+      "message": "area_in=2.062881e+08  disp=1.772360e+07  (expected 2.122831e+07)"
+    },
+    {
+      "name": "original_08",
+      "target": 99,
+      "status": "BETTER",
+      "message": "area_in=1.277306e+08  disp=4.700583e+06  (expected 4.855856e+06)"
+    },
+    {
+      "name": "original_09",
+      "target": 99,
+      "status": "BETTER",
+      "message": "area_in=6.321472e+10  disp=1.379889e+09  (expected 1.491307e+09)"
+    },
+    {
+      "name": "original_10",
+      "target": 99,
+      "status": "BETTER",
+      "message": "area_in=5.066884e+08  disp=1.311198e+07  (expected 1.521288e+07)"
+    }
+  ],
+  "custom": [
+    {
+      "name": "many_holes",
+      "target": 37,
+      "status": "OK",
+      "message": "disp=8.080688e+04"
+    },
+    {
+      "name": "dense_outer",
+      "target": 50,
+      "status": "OK",
+      "message": "disp=9.351667e+03"
+    },
+    {
+      "name": "narrow_corridor",
+      "target": 5,
+      "status": "OK",
+      "message": "disp=3.175000e+04"
+    },
+    {
+      "name": "nested_rings",
+      "target": 20,
+      "status": "OK",
+      "message": "disp=3.909631e+04"
+    },
+    {
+      "name": "large_with_many_holes",
+      "target": 40,
+      "status": "OK",
+      "message": "disp=5.492921e+04"
+    }
+  ],
+  "summary": {
+    "passed": 15,
+    "failed": 0,
+    "total": 15
+  }
+}

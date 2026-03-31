@@ -19,6 +19,7 @@ import os
 import csv
 import base64
 import html
+import json
 from datetime import datetime
 
 ROOT        = os.path.dirname(os.path.abspath(__file__))
@@ -26,6 +27,7 @@ VIZ_DIR     = os.path.join(ROOT, 'visualization')
 DISP_DIR    = os.path.join(ROOT, 'displacement_vs_target')
 TIME_DIR    = os.path.join(ROOT, 'time_vs_memory')
 MEM_DIR     = os.path.join(ROOT, 'memory_vs_inputsize')
+RESULTS_JSON = os.path.join(ROOT, 'test_results.json')
 
 # ── test case metadata ────────────────────────────────────────────────────────
 
@@ -122,6 +124,73 @@ def fmt_f(val, decimals=3):
 
 def h(text):
     return html.escape(str(text))
+
+# ── test results ─────────────────────────────────────────────────────────────────────
+
+def load_test_results():
+    if not os.path.exists(RESULTS_JSON):
+        return None
+    with open(RESULTS_JSON, encoding='utf-8') as f:
+        return json.load(f)
+
+
+def test_results_section(data):
+    if data is None:
+        return '''
+    <section id="test-results">
+      <h2>Test Results</h2>
+      <p class="missing">test_results.json not found — run python run_tests.py first.</p>
+    </section>'''
+
+    summary = data.get('summary', {})
+    passed  = summary.get('passed', 0)
+    failed  = summary.get('failed', 0)
+    total   = summary.get('total', 0)
+    better  = sum(1 for r in data.get('provided', []) if r.get('status') == 'BETTER')
+    badge_color = '#2e7d32' if failed == 0 else '#c62828'
+    badge_text  = 'ALL PASS' if failed == 0 else f'{failed} FAILED'
+    better_note = f' &nbsp;<span style="background:#1565C0;color:#fff;padding:.2rem .5rem;border-radius:4px;font-size:.8rem">{better} BETTER</span>' if better else ''
+
+    def rows_html(entries, show_validate=True):
+        out = ''
+        for r in entries:
+            status = r.get('status', '')
+            if status == 'BETTER':
+                cls, icon = 'better', '\u2605'  # ★
+            elif status in ('PASS', 'OK'):
+                cls, icon = 'pass', '✔'
+            else:
+                cls, icon = 'fail', '✘'
+            msg = h(r.get('message', ''))
+            validate_cell = f'<td class="{cls}">{icon} {h(status)}</td>' if show_validate else f'<td class="ok">{icon} {h(status)}</td>'
+            out += f'''<tr>
+              <td><a href="#viz-{h(r["name"])}">{h(r["name"])}</a></td>
+              <td>{h(r["target"])}</td>
+              {validate_cell}
+              <td class="msg">{msg}</td>
+            </tr>'''
+        return out
+
+    provided = data.get('provided', [])
+    custom   = data.get('custom', [])
+
+    return f'''
+    <section id="test-results">
+      <h2>Test Results
+        <span style="float:right;font-size:.85rem;font-weight:600;background:{badge_color};
+               color:#fff;padding:.2rem .7rem;border-radius:4px">{passed}/{total} &nbsp;{badge_text}</span>{better_note}
+      </h2>
+      <h3>Provided test cases</h3>
+      <table>
+        <thead><tr><th>Test case</th><th>Target</th><th>Status</th><th>Detail</th></tr></thead>
+        <tbody>{rows_html(provided, show_validate=True)}</tbody>
+      </table>
+      <h3 style="margin-top:1.2rem">Custom test cases</h3>
+      <table>
+        <thead><tr><th>Test case</th><th>Target</th><th>Status</th><th>Detail</th></tr></thead>
+        <tbody>{rows_html(custom, show_validate=False)}</tbody>
+      </table>
+    </section>'''
 
 # ── data loading ──────────────────────────────────────────────────────────────
 
@@ -298,6 +367,13 @@ tr:hover td { background: #e8f4fd; }
 .badge.custom   { background: #fff3e0; color: #e65100; }
 .badge.provided { background: #e8f5e9; color: #2e7d32; }
 
+/* test result status cells */
+td.pass   { color: #2e7d32; font-weight: 600; }
+td.better { color: #1565C0; font-weight: 600; }
+td.fail   { color: #c62828; font-weight: 600; }
+td.ok     { color: #1565C0; font-weight: 600; }
+td.msg    { font-family: monospace; font-size: .78rem; color: var(--muted); word-break: break-all; }
+
 /* misc */
 .missing { color: var(--muted); font-style: italic; padding: .5rem; }
 details { margin-top: .8rem; }
@@ -309,8 +385,10 @@ footer { text-align: center; padding: 2rem; font-size: .8rem; color: var(--muted
 
 def build_html():
     now = datetime.now().strftime('%Y-%m-%d %H:%M')
+    test_data = load_test_results()
 
     nav_links = ''.join([
+        '<a href="#test-results">Test Results</a>',
         '<a href="#summary">Summary</a>',
         '<a href="#displacement">Displacement vs Target</a>',
         '<a href="#time-memory">Runtime vs Memory</a>',
@@ -381,6 +459,7 @@ def build_html():
 </header>
 <nav>{nav_links}</nav>
 <main>
+  {test_results_section(test_data)}
   {summary_sec}
   {disp_sec}
   {time_sec}

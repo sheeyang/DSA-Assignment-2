@@ -12,6 +12,7 @@ import subprocess
 import sys
 import re
 import os
+import json
 
 # Path to the simplify executable (relative to this script's directory)
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -113,13 +114,12 @@ def run_test(input_file, target, expected_file):
         )
 
     if failures:
-        return False, '\n  '.join(failures)
+        return 'FAIL', '\n  '.join(failures)
 
-    disp_note = ''
     if act_disp < exp_disp * (1 - AREA_REL_TOL):
-        disp_note = f' (displacement BETTER: {act_disp:.6e} < {exp_disp:.6e})'
+        return 'BETTER', f'area_in={act_area_in:.6e}  disp={act_disp:.6e}  (expected {exp_disp:.6e})'
 
-    return True, f'area_in={act_area_in:.6e}  disp={act_disp:.6e}{disp_note}'
+    return 'PASS', f'area_in={act_area_in:.6e}  disp={act_disp:.6e}'
 
 
 # Custom test cases (no expected output — just run and save)
@@ -166,21 +166,23 @@ def main():
     print(f"{'Test':<{col}}  {'Result'}")
     print('-' * (col + 30))
 
+    provided_results = []
     for input_file, target, expected_file in TEST_CASES:
-        name = input_file.replace('input_', '').replace('.csv', '') + f' (n={target})'
+        name = input_file.replace('input_', '').replace('.csv', '')
+        display = name + f' (n={target})'
         try:
-            ok, msg = run_test(input_file, target, expected_file)
+            status, msg = run_test(input_file, target, expected_file)
         except subprocess.TimeoutExpired:
-            ok, msg = False, 'TIMEOUT'
+            status, msg = 'FAIL', 'TIMEOUT'
         except Exception as e:
-            ok, msg = False, str(e)
+            status, msg = 'FAIL', str(e)
 
-        status = 'PASS' if ok else 'FAIL'
-        print(f"{name:<{col}}  {status}  {msg}")
-        if ok:
+        print(f"{display:<{col}}  {status}  {msg}")
+        if status != 'FAIL':
             passed += 1
         else:
             failed += 1
+        provided_results.append({'name': name, 'target': target, 'status': status, 'message': msg})
 
     print('-' * (col + 30))
     print(f"Results: {passed} passed, {failed} failed out of {passed + failed} tests")
@@ -190,18 +192,32 @@ def main():
     print(f"{'Custom Test':<{col}}  {'Result'}")
     print('-' * (col + 30))
 
+    custom_results = []
     for input_file, target in MY_TEST_CASES:
-        name = input_file.replace('input_', '').replace('.csv', '') + f' (n={target})'
+        name = input_file.replace('input_', '').replace('.csv', '')
+        display = name + f' (n={target})'
         try:
             ok, msg = run_custom(input_file, target)
         except subprocess.TimeoutExpired:
             ok, msg = False, 'TIMEOUT'
         except Exception as e:
             ok, msg = False, str(e)
-        status = 'OK  ' if ok else 'FAIL'
-        print(f"{name:<{col}}  {status}  {msg}")
+        status = 'OK' if ok else 'FAIL'
+        print(f"{display:<{col}}  {status}  {msg}")
+        custom_results.append({'name': name, 'target': target, 'status': status, 'message': msg})
 
     print('-' * (col + 30))
+
+    # ── Save JSON results ─────────────────────────────────────────────────────
+    results_path = os.path.join(SCRIPT_DIR, 'test_results.json')
+    with open(results_path, 'w', encoding='utf-8') as f:
+        json.dump({
+            'provided': provided_results,
+            'custom':   custom_results,
+            'summary':  {'passed': passed, 'failed': failed, 'total': passed + failed},
+        }, f, indent=2)
+    print(f"\nResults saved to: {results_path}")
+
     sys.exit(0 if failed == 0 else 1)
 
 
