@@ -110,6 +110,12 @@ def main():
             [PYTHON, 'plot_memory_vs_inputsize.py'],
         )
 
+    # ── Step 7: generate HTML report ─────────────────────────────────────────
+    results['report'] = run_step(
+        'Step 7 — generate_report.py',
+        [PYTHON, 'generate_report.py'],
+    )
+
     # ── Summary ───────────────────────────────────────────────────────────────
     total_elapsed = time.perf_counter() - total_start
     banner('Summary')
@@ -120,6 +126,7 @@ def main():
         'plot_displacement': 'Step 4  plot displacement',
         'plot_time_mem':    'Step 5  plot time vs memory',
         'plot_mem_size':    'Step 6  plot memory vs input size',
+        'report':           'Step 7  generate HTML report',
     }
     any_failed = False
     for key, label in labels.items():
