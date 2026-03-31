@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
 """
-Plot total areal displacement vs. target vertex count for all test cases.
+Plot total areal displacement vs. target vertex count.
 
-Runs the simplify executable on every test case and parses
-"Total areal displacement:" from its output.
+Two plots are produced:
+  1. Cross-case scatter — one point per test case at its fixed target.
+  2. Per-polygon displacement sweep — multiple targets per dataset, showing
+     how areal displacement grows as the target vertex count is reduced.
+     This is the primary plot (c) required by the rubric.
 
 Output:
-    displacement_vs_target/displacement_vs_target.png
+    displacement_vs_target/displacement_vs_target.png   (cross-case scatter)
     displacement_vs_target/displacement_vs_target.csv
+    displacement_vs_target/displacement_sweep.png       (per-polygon sweep)
+    displacement_vs_target/displacement_sweep.csv
 """
 
 import sys
@@ -127,6 +132,116 @@ COLORS = [
     '#FF5722', '#3F51B5', '#009688', '#FFC107', '#673AB7',
 ]
 
+# ── per-polygon displacement sweep ────────────────────────────────────────────
+# Each entry: (name, input_file, test_dir, [list of target counts to sweep])
+# Targets are chosen to give ~10-15 evenly spaced points from just above the
+# topology minimum up to the full input vertex count.
+SWEEP_CASES = [
+    (
+        'dense_outer',
+        'input_dense_outer.csv',
+        MY_TEST_DIR,
+        # 1 ring, 400 verts — topology min = 3
+        [3, 5, 10, 20, 30, 50, 75, 100, 150, 200, 250, 300, 350, 400],
+    ),
+    (
+        'large_with_many_holes',
+        'input_large_with_many_holes.csv',
+        MY_TEST_DIR,
+        # 9 rings (100 + 8×6 verts) — topology min ≈ 27
+        [27, 30, 35, 40, 50, 60, 70, 80, 90, 100, 115, 130, 148],
+    ),
+    (
+        'many_holes',
+        'input_many_holes.csv',
+        MY_TEST_DIR,
+        # 7 rings (4 + 6×12 verts) — topology min ≈ 21
+        [21, 25, 28, 32, 37, 42, 50, 58, 65, 76],
+    ),
+]
+
+SWEEP_COLORS = ['#2196F3', '#FF9800', '#4CAF50']
+
+
+def run_sweep():
+    """Run simplify for every (dataset, target) in SWEEP_CASES.
+
+    Returns list of (name, target, actual_verts, displacement).
+    """
+    results = []
+    total = sum(len(targets) for _, _, _, targets in SWEEP_CASES)
+    print(f"\nRunning displacement sweep ({total} runs) ...\n")
+    for name, input_file, tdir, targets in SWEEP_CASES:
+        print(f"  {name}")
+        for target in targets:
+            actual_verts, disp = run(name, input_file, target, tdir)
+            av_str   = str(actual_verts) if actual_verts is not None else 'N/A'
+            disp_str = f'{disp:.3e}' if disp is not None else 'N/A'
+            print(f"    target={target:>4}  actual={av_str:>4}  disp={disp_str}")
+            results.append((name, target, actual_verts, disp))
+    return results
+
+
+def plot_sweep(sweep_results):
+    """Line plot: displacement vs. actual vertex count, one line per dataset."""
+    # Group by name
+    from collections import defaultdict
+    groups = defaultdict(list)
+    for name, target, actual_verts, disp in sweep_results:
+        if disp is not None and actual_verts is not None:
+            groups[name].append((actual_verts, disp))
+
+    if not groups:
+        print("No valid sweep data to plot.")
+        return
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    for idx, (name, _input, _tdir, _targets) in enumerate(SWEEP_CASES):
+        pts = sorted(groups.get(name, []))
+        if not pts:
+            continue
+        xs, ys = zip(*pts)
+        color = SWEEP_COLORS[idx % len(SWEEP_COLORS)]
+        ax.plot(xs, ys, '-o', color=color, linewidth=1.8, markersize=5,
+                label=name.replace('_', ' '))
+
+    ax.set_xlabel('Actual output vertex count', fontsize=11)
+    ax.set_ylabel('Total areal displacement', fontsize=11)
+    ax.set_title(
+        'Areal Displacement vs. Output Vertex Count\n'
+        '(per-polygon sweep — decreasing target from full size to topology minimum)',
+        fontsize=12, fontweight='bold',
+    )
+    ax.invert_xaxis()   # left = fewer vertices (more simplified) → more displacement
+    ax.legend(fontsize=9)
+    ax.grid(True, linestyle='--', alpha=0.4)
+    ax.yaxis.set_major_formatter(ticker.ScalarFormatter(useMathText=True))
+    ax.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
+
+    plt.tight_layout()
+    os.makedirs(OUT_DIR, exist_ok=True)
+    out_path = os.path.join(OUT_DIR, 'displacement_sweep.png')
+    fig.savefig(out_path, dpi=150, bbox_inches='tight')
+    print(f"\nSaved sweep plot: {out_path}")
+    plt.close(fig)
+
+
+def save_sweep_csv(sweep_results):
+    os.makedirs(OUT_DIR, exist_ok=True)
+    out_path = os.path.join(OUT_DIR, 'displacement_sweep.csv')
+    with open(out_path, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.writer(f)
+        writer.writerow(['test_case', 'target_vertices', 'actual_vertices', 'areal_displacement'])
+        for name, target, actual_verts, disp in sweep_results:
+            writer.writerow([
+                name,
+                target,
+                actual_verts if actual_verts is not None else '',
+                f'{disp:.6e}' if disp is not None else '',
+            ])
+    print(f"Saved sweep CSV:  {out_path}")
+
 
 def plot(results):
     """results: list of (name, target, actual_verts, displacement)"""
@@ -209,6 +324,11 @@ def main():
 
     plot(results)
     save_csv(results)
+
+    # ── per-polygon displacement sweep (plot c) ───────────────────────────────
+    sweep_results = run_sweep()
+    plot_sweep(sweep_results)
+    save_sweep_csv(sweep_results)
 
 
 if __name__ == '__main__':

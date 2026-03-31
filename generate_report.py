@@ -474,7 +474,8 @@ def build_html():
     nav_links = ''.join([
         '<a href="#test-results">Test Results</a>',
         '<a href="#summary">Summary</a>',
-        '<a href="#displacement">Displacement vs Target</a>',
+        '<a href="#displacement-scatter">Displacement Scatter</a>',
+        '<a href="#displacement-sweep">Displacement Sweep</a>',
         '<a href="#runtime-size">Runtime vs Input Size</a>',
         '<a href="#time-memory">Runtime vs Memory</a>',
         '<a href="#memory-size">Memory vs Input Size</a>',
@@ -492,11 +493,33 @@ def build_html():
       {summary_table(CUSTOM_CASES,   "Custom test cases")}
     </section>'''
 
+    disp_scatter_intro = '''
+    <section id="displacement-intro" style="background:#e3f2fd;border-color:#90caf9;padding:1rem 1.5rem">
+      <h2 style="border-color:#1565C0">Displacement vs Target Vertex Count — Two Views</h2>
+      <p style="font-size:.9rem">
+        <b>Cross-case scatter</b> (below left): one point per test case at its fixed
+        requested target — useful for comparing geometric difficulty across datasets.<br>
+        <b>Per-polygon sweep</b> (below right, <em>plot c per rubric</em>): the same
+        polygon is simplified at many different target counts, showing how areal
+        displacement grows as vertices are removed. Three custom datasets are swept:
+        <em>dense_outer</em> (1&nbsp;ring, 400&nbsp;verts), <em>large_with_many_holes</em>
+        (9&nbsp;rings, 148&nbsp;verts), and <em>many_holes</em> (7&nbsp;rings, 76&nbsp;verts).
+        The x-axis is inverted so the right edge is maximally simplified.
+      </p>
+    </section>'''
+
     disp_sec = plot_section(
-        'Areal Displacement vs Target Vertex Count',
+        'Areal Displacement vs Target Vertex Count (cross-case scatter)',
         os.path.join(DISP_DIR, 'displacement_vs_target.png'),
         os.path.join(DISP_DIR, 'displacement_vs_target.csv'),
-        'displacement',
+        'displacement-scatter',
+    )
+
+    disp_sweep_sec = plot_section(
+        'Areal Displacement vs Output Vertex Count — Per-Polygon Sweep (plot c)',
+        os.path.join(DISP_DIR, 'displacement_sweep.png'),
+        os.path.join(DISP_DIR, 'displacement_sweep.csv'),
+        'displacement-sweep',
     )
     runtime_size_sec = plot_section(
         'Runtime vs Input Size (with curve fits)',
@@ -631,7 +654,9 @@ def build_html():
 <main>
   {test_results_section(test_data)}
   {summary_sec}
+  {disp_scatter_intro}
   {disp_sec}
+  {disp_sweep_sec}
   {runtime_size_sec}
   {time_sec}
   {mem_sec}
