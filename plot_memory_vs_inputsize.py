@@ -1,22 +1,27 @@
 #!/usr/bin/env python3
 """
-Plot peak memory usage vs input size (vertex count) for all test cases.
+Plot peak memory usage vs input size (vertex count) for all test cases,
+with c·n^k and c·n·log(n) curve fits overlaid.
 
 Counts vertices in each input CSV, then runs simplify with /usr/bin/time -v
 (via WSL on Windows) to capture peak RSS.
 
 Output:
-    experiments/plots/memory/memory_vs_inputsize.png
-    experiments/results/memory_vs_inputsize.csv
+    memory_vs_inputsize/memory_vs_inputsize.png
+    memory_vs_inputsize/memory_vs_inputsize.csv
+  + curve_fits.memory written to dataset_descriptions.json
 """
 
 import sys
 import os
 import re
 import csv
+import json
 import subprocess
+import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
+from scipy.optimize import curve_fit
 
 # ── paths ────────────────────────────────────────────────────────────────────
 SCRIPT_DIR   = os.path.dirname(os.path.abspath(__file__))
@@ -125,6 +130,39 @@ def measure_memory(name, input_file, target, test_dir=None):
     return rss_kb / 1024.0
 
 
+# ── curve fitting ─────────────────────────────────────────────────────────────
+
+def fit_power(xs, ys):
+    """Fit y = c * x^k.  Returns (c, k) or None."""
+    xs, ys = np.array(xs, dtype=float), np.array(ys, dtype=float)
+    mask = (xs > 0) & (ys > 0)
+    if mask.sum() < 3:
+        return None
+    try:
+        def model(x, log_c, k):
+            return log_c + k * np.log(x)
+        popt, _ = curve_fit(model, xs[mask], np.log(ys[mask]))
+        return np.exp(popt[0]), popt[1]
+    except Exception:
+        return None
+
+
+def fit_nlogn(xs, ys):
+    """Fit y = c * x * log(x).  Returns c or None."""
+    xs, ys = np.array(xs, dtype=float), np.array(ys, dtype=float)
+    mask = (xs > 1) & (ys > 0)
+    if mask.sum() < 3:
+        return None
+    try:
+        def model(x, c):
+            return c * x * np.log(x)
+        popt, _ = curve_fit(model, xs[mask], ys[mask],
+                            p0=[ys[mask].mean() / (xs[mask] * np.log(xs[mask])).mean()])
+        return popt[0]
+    except Exception:
+        return None
+
+
 # ── plotting ─────────────────────────────────────────────────────────────────
 
 SHORT_LABELS = {
@@ -151,45 +189,62 @@ COLORS = [
 def plot(results):
     """
     results: list of (name, input_vertices, peak_rss_mb)
+    Returns fit_info dict.
     """
     valid = [(n, v, m) for n, v, m in results if v is not None and m is not None]
     if not valid:
         print("No valid data to plot.")
-        return
+        return {}
+
+    verts_all = [r[1] for r in valid]
+    mems_all  = [r[2] for r in valid]
+
+    power_fit = fit_power(verts_all, mems_all)
+    nlogn_fit = fit_nlogn(verts_all, mems_all)
+
+    xs = np.linspace(min(verts_all) * 0.9, max(verts_all) * 1.1, 300)
 
     fig, ax = plt.subplots(figsize=(11, 7))
 
     for i, (name, verts, mem) in enumerate(valid):
         color = COLORS[i % len(COLORS)]
         ax.scatter(verts, mem, color=color, s=80, zorder=3)
-        label = SHORT_LABELS.get(name, name)
-        ax.annotate(
-            label,
-            xy=(verts, mem),
-            xytext=(5, 4),
-            textcoords='offset points',
-            fontsize=8,
-            color=color,
-        )
+        ax.annotate(SHORT_LABELS.get(name, name), xy=(verts, mem),
+                    xytext=(5, 4), textcoords='offset points', fontsize=8, color=color)
+
+    fit_info = {}
+    if power_fit:
+        c, k = power_fit
+        ax.plot(xs, c * xs ** k, 'k--', linewidth=1.4,
+                label=f'$c \\cdot n^k$:  c={c:.3e}, k={k:.3f}', zorder=2)
+        fit_info['power'] = {'c': float(c), 'k': float(k), 'label': f'c·n^k  (c={c:.3e}, k={k:.3f})'}
+
+    if nlogn_fit:
+        c_nl = nlogn_fit
+        ax.plot(xs, c_nl * xs * np.log(xs), 'r:', linewidth=1.4,
+                label=f'$c \\cdot n \\log n$:  c={c_nl:.3e}', zorder=2)
+        fit_info['nlogn'] = {'c': float(c_nl), 'label': f'c·n·log(n)  (c={c_nl:.3e})'}
 
     ax.set_xlabel('Input size (number of vertices)', fontsize=11)
     ax.set_ylabel('Peak memory usage (MB)', fontsize=11)
-    ax.set_title('Peak Memory Usage vs Input Size\n(per test case)', fontsize=13, fontweight='bold')
+    ax.set_title('Peak Memory Usage vs Input Size\nwith curve fits', fontsize=13, fontweight='bold')
     ax.xaxis.set_minor_locator(ticker.AutoMinorLocator())
     ax.yaxis.set_minor_locator(ticker.AutoMinorLocator())
     ax.grid(True, linestyle='--', alpha=0.4)
     ax.grid(True, which='minor', linestyle=':', alpha=0.2)
-
+    if fit_info:
+        ax.legend(fontsize=9)
     plt.tight_layout()
 
     os.makedirs(OUT_DIR, exist_ok=True)
     out_path = os.path.join(OUT_DIR, 'memory_vs_inputsize.png')
     fig.savefig(out_path, dpi=150, bbox_inches='tight')
-    print(f"\nSaved plot: {out_path}")
+    print(f"Saved plot: {out_path}")
     plt.close(fig)
+    return fit_info
 
 
-# ── CSV export ────────────────────────────────────────────────────────────────
+# ── CSV export + JSON fit save ────────────────────────────────────────────────
 
 def save_csv(results):
     os.makedirs(OUT_DIR, exist_ok=True)
@@ -204,6 +259,22 @@ def save_csv(results):
                 f'{mem:.4f}' if mem is not None else '',
             ])
     print(f"Saved CSV:  {out_path}")
+
+
+def save_memory_fits(fit_info):
+    """Merge memory curve-fit results into dataset_descriptions.json."""
+    desc_path = os.path.join(SCRIPT_DIR, 'dataset_descriptions.json')
+    if os.path.exists(desc_path):
+        with open(desc_path, encoding='utf-8') as f:
+            data = json.load(f)
+    else:
+        data = {}
+    if 'curve_fits' not in data:
+        data['curve_fits'] = {}
+    data['curve_fits']['memory'] = fit_info
+    with open(desc_path, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=2)
+    print(f"Saved memory curve fits → dataset_descriptions.json")
 
 
 # ── main ─────────────────────────────────────────────────────────────────────
@@ -226,8 +297,9 @@ def main():
         print(f'{v_str:>12}  {mem_str:>14}')
         results.append((name, verts, mem))
 
-    plot(results)
+    fit_info = plot(results)
     save_csv(results)
+    save_memory_fits(fit_info or {})
 
 
 if __name__ == '__main__':

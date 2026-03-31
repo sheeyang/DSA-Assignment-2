@@ -28,6 +28,20 @@ DISP_DIR    = os.path.join(ROOT, 'displacement_vs_target')
 TIME_DIR    = os.path.join(ROOT, 'time_vs_memory')
 MEM_DIR     = os.path.join(ROOT, 'memory_vs_inputsize')
 RESULTS_JSON = os.path.join(ROOT, 'test_results.json')
+DESCS_JSON   = os.path.join(ROOT, 'dataset_descriptions.json')
+
+# ── load dataset descriptions from JSON ──────────────────────────────────────
+
+def load_descriptions():
+    if not os.path.exists(DESCS_JSON):
+        return {}, {}, {}
+    with open(DESCS_JSON, encoding='utf-8') as f:
+        data = json.load(f)
+    return (data.get('provided', {}),
+            data.get('custom', {}),
+            data.get('curve_fits', {}))
+
+PROVIDED_DESCS, CUSTOM_DESCS, _CURVE_FITS_PLACEHOLDER = load_descriptions()
 
 # ── test case metadata ────────────────────────────────────────────────────────
 
@@ -48,43 +62,6 @@ CUSTOM_CASES = [
     'nested_rings',
     'large_with_many_holes',
 ]
-
-CUSTOM_DESCRIPTIONS = {
-    'many_holes': (
-        'Many holes (6 circular holes)',
-        'A large outer square containing 6 evenly-spaced circular holes arranged in a 3×2 grid. '
-        'Targets topology-aware simplification across 7 simultaneous rings. '
-        '<b>Challenge:</b> the algorithm must preserve all 6 holes without accidentally merging or collapsing any ring.'
-    ),
-    'dense_outer': (
-        'High vertex count (400 vertices, single ring)',
-        'A single sinusoidally-perturbed ring (r = 1000 + 80·sin(8t)) sampled at 400 vertices. '
-        'Targets heap/priority-queue performance under a high-volume vertex stream. '
-        '<b>Challenge:</b> many near-collinear points with small displacement — the simplifier must pick the globally '
-        'cheapest removals without greedily eliminating almost-free vertices that block better savings later.'
-    ),
-    'narrow_corridor': (
-        'Narrow gap (3-unit clearance between hole and outer ring)',
-        'A wide rectangle with a thin rectangular hole only 3 units from the top edge. '
-        'Targets near-degenerate topology where any vertex removal on the hole could violate non-intersection. '
-        '<b>Challenge:</b> the gap is smaller than typical simplification step sizes, so the algorithm must '
-        'respect geometric constraints and halt simplification early to avoid self-intersection.'
-    ),
-    'nested_rings': (
-        'Near-degenerate nesting (inner radius 400, outer 500)',
-        'Two concentric 60-vertex circles of radius 500 (exterior) and 400 (hole). '
-        'Targets the thin-annulus case where hole and outer ring are geometrically close at all angles. '
-        '<b>Challenge:</b> simplifying either ring risks bringing a simplified chord across the other ring, '
-        'requiring careful per-triangle displacement accounting.'
-    ),
-    'large_with_many_holes': (
-        'High vertex count × many holes (100-vertex outer + 8 irregular holes)',
-        'A 100-vertex outer circle at r=800 with 8 irregular 6-vertex polygon holes placed at r=450, '
-        'evenly distributed angularly. Combines the pressure of 9 simultaneous rings with non-trivial hole geometry. '
-        '<b>Challenge:</b> the simplifier must budget areal displacement across 9 rings and deal with irregular '
-        '(non-convex) hole shapes that have unequal per-vertex displacement costs.'
-    ),
-}
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -268,9 +245,18 @@ def viz_card(name, is_custom=False):
         <span>Peak mem: <b>{fmt_f(r["peak_mem"], 2)} MB</b></span>
       </div>'''
 
-    if is_custom and name in CUSTOM_DESCRIPTIONS:
-        short, desc = CUSTOM_DESCRIPTIONS[name]
-        desc_html = f'<div class="desc"><b>{h(short)}</b><p>{desc}</p></div>'
+    desc_dict = CUSTOM_DESCS if is_custom else PROVIDED_DESCS
+    if name in desc_dict:
+        d = desc_dict[name]
+        short     = d.get('short', name)
+        prop      = d.get('property', '')
+        challenge = d.get('challenge', '')
+        desc_html = (
+            f'<div class="desc"><b>{h(short)}</b>'
+            + (f'<p><b>Property:</b> {h(prop)}</p>' if prop else '')
+            + (f'<p><b>Challenge:</b> {h(challenge)}</p>' if challenge else '')
+            + '</div>'
+        )
     else:
         desc_html = ''
 
@@ -387,12 +373,18 @@ def build_html():
     now = datetime.now().strftime('%Y-%m-%d %H:%M')
     test_data = load_test_results()
 
+    # Re-load descriptions at build time so curve_fits are up to date
+    _, _, curve_fits = load_descriptions()
+
     nav_links = ''.join([
         '<a href="#test-results">Test Results</a>',
         '<a href="#summary">Summary</a>',
         '<a href="#displacement">Displacement vs Target</a>',
+        '<a href="#runtime-size">Runtime vs Input Size</a>',
         '<a href="#time-memory">Runtime vs Memory</a>',
         '<a href="#memory-size">Memory vs Input Size</a>',
+        '<a href="#curve-fits">Curve Fits</a>',
+        '<a href="#datasets">Dataset Descriptions</a>',
         '<a href="#provided-viz">Provided Visualizations</a>',
         '<a href="#custom-viz">Custom Visualizations</a>',
     ])
@@ -410,6 +402,12 @@ def build_html():
         os.path.join(DISP_DIR, 'displacement_vs_target.csv'),
         'displacement',
     )
+    runtime_size_sec = plot_section(
+        'Runtime vs Input Size (with curve fits)',
+        os.path.join(TIME_DIR, 'runtime_vs_inputsize.png'),
+        os.path.join(TIME_DIR, 'time_vs_memory.csv'),
+        'runtime-size',
+    )
     time_sec = plot_section(
         'Wall-Clock Runtime vs Peak Memory Usage',
         os.path.join(TIME_DIR, 'time_vs_memory.png'),
@@ -417,11 +415,63 @@ def build_html():
         'time-memory',
     )
     mem_sec = plot_section(
-        'Peak Memory Usage vs Input Size',
+        'Peak Memory Usage vs Input Size (with curve fits)',
         os.path.join(MEM_DIR, 'memory_vs_inputsize.png'),
         os.path.join(MEM_DIR, 'memory_vs_inputsize.csv'),
         'memory-size',
     )
+
+    # ── curve fits section ────────────────────────────────────────────────────
+    def fit_table(fits, label):
+        if not fits:
+            return f'<p class="missing">{h(label)}: not yet computed — run the plot scripts first.</p>'
+        rows = ''
+        for key, info in fits.items():
+            rows += f'<tr><td>{h(key)}</td><td style="font-family:monospace">{h(info.get("label",""))}</td></tr>'
+        return (f'<h3>{h(label)}</h3>'
+                f'<table><thead><tr><th>Model</th><th>Fitted expression</th></tr></thead>'
+                f'<tbody>{rows}</tbody></table>')
+
+    curve_fits_sec = f'''
+    <section id="curve-fits">
+      <h2>Scaling Analysis — Curve Fits</h2>
+      <p style="font-size:.85rem;color:var(--muted);margin-bottom:.8rem">
+        Two models are fitted to each metric: a power law
+        <em>y = c &middot; n<sup>k</sup></em> and a quasi-linear
+        <em>y = c &middot; n log n</em>.  The fitted constants are shown below
+        and overlaid on the corresponding plots above.
+      </p>
+      {fit_table(curve_fits.get('runtime', {}), 'Runtime scaling')}
+      {fit_table(curve_fits.get('memory',  {}), 'Memory scaling')}
+    </section>'''
+
+    # ── dataset descriptions section ──────────────────────────────────────────
+    def desc_rows(descs, names):
+        rows = ''
+        for name in names:
+            d = descs.get(name, {})
+            rows += (f'<tr>'
+                     f'<td><a href="#viz-{h(name)}">{h(name)}</a></td>'
+                     f'<td>{h(d.get("property", "—"))}</td>'
+                     f'<td>{h(d.get("challenge", "—"))}</td>'
+                     f'</tr>')
+        return rows
+
+    _, _, _ = load_descriptions()   # already loaded above
+    datasets_sec = f'''
+    <section id="datasets">
+      <h2>Dataset Descriptions</h2>
+      <h3>Custom test cases</h3>
+      <table>
+        <thead><tr><th>Name</th><th>Targeted property</th><th>Why it is challenging</th></tr></thead>
+        <tbody>{desc_rows(CUSTOM_DESCS, CUSTOM_CASES)}</tbody>
+      </table>
+      <h3 style="margin-top:1.2rem">Provided test cases</h3>
+      <table>
+        <thead><tr><th>Name</th><th>Targeted property</th><th>Why it is challenging</th></tr></thead>
+        <tbody>{desc_rows(PROVIDED_DESCS, PROVIDED_CASES)}</tbody>
+      </table>
+    </section>'''
 
     provided_cards = ''.join(viz_card(n, is_custom=False) for n in PROVIDED_CASES)
     custom_cards   = ''.join(viz_card(n, is_custom=True)  for n in CUSTOM_CASES)
@@ -462,8 +512,11 @@ def build_html():
   {test_results_section(test_data)}
   {summary_sec}
   {disp_sec}
+  {runtime_size_sec}
   {time_sec}
   {mem_sec}
+  {curve_fits_sec}
+  {datasets_sec}
   {provided_sec}
   {custom_sec}
 </main>

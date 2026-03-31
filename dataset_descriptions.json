@@ -1,0 +1,67 @@
+{
+  "provided": {
+    "rectangle_with_two_holes": {
+      "short": "Rectangle with two rectangular holes",
+      "property": "Simple rectilinear geometry with two axis-aligned holes",
+      "challenge": "Low vertex count makes every vertex critical; removing any point causes large angular distortion on the right-angle corners."
+    },
+    "cushion_with_hexagonal_hole": {
+      "short": "Cushion with hexagonal hole",
+      "property": "Curved outer boundary with a regular polygonal hole",
+      "challenge": "The hexagon's flat edges create large triangular displacement pockets — the simplifier must avoid removing the vertices that define those flat sides."
+    },
+    "blob_with_two_holes": {
+      "short": "Blob with two holes",
+      "property": "Irregular/organic outer boundary with two holes",
+      "challenge": "The irregular outer ring has many equally-cheap vertices; greedy removal order matters because choosing the wrong cheap vertex can block larger savings on the holes."
+    },
+    "wavy_with_three_holes": {
+      "short": "Wavy boundary with three holes",
+      "property": "High-frequency undulating outer ring with three holes",
+      "challenge": "Adjacent wave peaks have similar displacement costs, so the heap must correctly rank near-equal candidates while keeping all three hole rings intact."
+    },
+    "lake_with_two_islands": {
+      "short": "Lake boundary with two islands",
+      "property": "Large outer polygon representing a lake shore, two inner rings as islands",
+      "challenge": "Island rings (interior of the outer ring, exterior of themselves) require correct signed-area orientation tracking; incorrect orientation handling would invert the islands."
+    },
+    "original_01": { "short": "Original test 01", "property": "Real-world polygon data", "challenge": "Unknown structure; tests robustness on arbitrary real-world input." },
+    "original_02": { "short": "Original test 02", "property": "Real-world polygon data", "challenge": "Unknown structure; tests robustness on arbitrary real-world input." },
+    "original_03": { "short": "Original test 03", "property": "Real-world polygon data", "challenge": "Unknown structure; tests robustness on arbitrary real-world input." },
+    "original_04": { "short": "Original test 04", "property": "Real-world polygon data", "challenge": "Unknown structure; tests robustness on arbitrary real-world input." },
+    "original_05": { "short": "Original test 05", "property": "Real-world polygon data", "challenge": "Unknown structure; tests robustness on arbitrary real-world input." },
+    "original_06": { "short": "Original test 06", "property": "Real-world polygon data", "challenge": "Unknown structure; tests robustness on arbitrary real-world input." },
+    "original_07": { "short": "Original test 07", "property": "Real-world polygon data", "challenge": "Unknown structure; tests robustness on arbitrary real-world input." },
+    "original_08": { "short": "Original test 08", "property": "Real-world polygon data", "challenge": "Unknown structure; tests robustness on arbitrary real-world input." },
+    "original_09": { "short": "Original test 09", "property": "Real-world polygon data", "challenge": "Unknown structure; tests robustness on arbitrary real-world input." },
+    "original_10": { "short": "Original test 10", "property": "Real-world polygon data", "challenge": "Unknown structure; tests robustness on arbitrary real-world input." }
+  },
+  "custom": {
+    "many_holes": {
+      "short": "Many holes — 6 circular holes in a 3×2 grid",
+      "property": "High hole count (7 simultaneous rings)",
+      "challenge": "The algorithm must preserve all 6 holes without accidentally merging or collapsing any ring. Managing a shared priority queue across 7 rings with equal budget pressure tests hole-count scalability."
+    },
+    "dense_outer": {
+      "short": "High vertex count — 400-vertex sinusoidal ring",
+      "property": "High vertex count on a single ring (r = 1000 + 80·sin(8t), 400 samples)",
+      "challenge": "Many near-collinear points with small but non-zero displacement. The simplifier must pick the globally cheapest removals without greedily eliminating almost-free vertices that block better savings later. Stresses heap throughput."
+    },
+    "narrow_corridor": {
+      "short": "Narrow gap — 3-unit clearance between hole and outer ring",
+      "property": "Near-degenerate topology: hole almost touches outer boundary",
+      "challenge": "The clearance (3 units) is smaller than a typical simplification step, so the algorithm must detect when a chord would intersect the other ring and halt early. Tests geometric constraint enforcement."
+    },
+    "nested_rings": {
+      "short": "Near-degenerate nesting — inner r=400, outer r=500",
+      "property": "Thin annulus: outer ring and hole are geometrically close at all angles",
+      "challenge": "Simplifying either ring risks sweeping a simplified chord across the other ring. Requires careful per-triangle displacement accounting and intersection detection around the full circumference."
+    },
+    "large_with_many_holes": {
+      "short": "Large + many holes — 100-vertex outer, 8 irregular 6-vertex holes",
+      "property": "Combination of high vertex count and many holes with irregular hole shapes",
+      "challenge": "9 simultaneous rings with non-uniform per-vertex displacement costs. The simplifier must budget displacement across rings and handle irregular (non-convex) hole geometry with unequal removal costs."
+    }
+  },
+  "curve_fits": {}
+}
