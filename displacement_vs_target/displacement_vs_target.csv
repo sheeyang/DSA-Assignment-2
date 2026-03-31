@@ -1,0 +1,16 @@
+test_case,target_vertices,actual_vertices,areal_displacement
+rectangle_with_two_holes,7,11,1.600000e+00
+cushion_with_hexagonal_hole,13,13,3.758356e+02
+blob_with_two_holes,17,17,5.521891e+04
+wavy_with_three_holes,21,21,6.918077e+04
+lake_with_two_islands,17,17,8.342281e+04
+original_01,99,99,8.117930e+06
+original_02,99,99,7.874170e+06
+original_03,99,99,1.094104e+08
+original_04,99,99,7.508634e+06
+original_05,99,99,4.308617e+06
+original_06,99,99,6.921149e+07
+original_07,99,99,1.772360e+07
+original_08,99,99,4.700583e+06
+original_09,99,99,1.379889e+09
+original_10,99,99,1.311198e+07
