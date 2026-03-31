@@ -1,0 +1,16 @@
+test_case,input_vertices,peak_memory_mb
+rectangle_with_two_holes,12,6.3750
+cushion_with_hexagonal_hole,22,6.0000
+blob_with_two_holes,36,7.0000
+wavy_with_three_holes,43,7.1250
+lake_with_two_islands,81,8.2500
+original_01,1860,6.6484
+original_02,8605,11.8867
+original_03,74559,56.7695
+original_04,6733,11.3125
+original_05,6230,10.9961
+original_06,14122,17.1406
+original_07,10596,12.9336
+original_08,6850,11.1250
+original_09,409998,228.3086
+original_10,9899,11.9570

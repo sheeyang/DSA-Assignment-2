@@ -1,0 +1,16 @@
+test_case,wall_time_s,peak_memory_mb
+rectangle_with_two_holes,0.025626,6.3750
+cushion_with_hexagonal_hole,0.032848,6.1250
+blob_with_two_holes,0.048145,7.1250
+wavy_with_three_holes,0.057730,7.1250
+lake_with_two_islands,1.187800,8.2500
+original_01,0.102585,6.7812
+original_02,0.558681,11.6992
+original_03,2.440580,56.8594
+original_04,0.804859,11.3164
+original_05,0.362577,10.9961
+original_06,0.303300,17.1406
+original_07,0.212729,12.9336
+original_08,0.395628,11.1250
+original_09,45.966837,228.1172
+original_10,0.618506,12.0781
