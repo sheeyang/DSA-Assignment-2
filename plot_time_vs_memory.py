@@ -50,7 +50,6 @@ MY_TEST_CASES = [
     ('dense_outer',           'input_dense_outer.csv',           50),
     ('narrow_corridor',       'input_narrow_corridor.csv',        5),
     ('nested_rings',          'input_nested_rings.csv',          20),
-    ('zigzag_with_hole',      'input_zigzag_with_hole.csv',      30),
     ('large_with_many_holes', 'input_large_with_many_holes.csv', 40),
 ]
 
@@ -124,7 +123,6 @@ SHORT_LABELS = {
     'dense_outer':           'dense',
     'narrow_corridor':       'narrow',
     'nested_rings':          'nested',
-    'zigzag_with_hole':      'zigzag',
     'large_with_many_holes': 'large_mh',
 }
 

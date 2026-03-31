@@ -49,7 +49,6 @@ MY_TEST_CASES = {
     'dense_outer':         (50,  'input_dense_outer.csv'),
     'narrow_corridor':     (5,   'input_narrow_corridor.csv'),
     'nested_rings':        (20,  'input_nested_rings.csv'),
-    'zigzag_with_hole':    (30,  'input_zigzag_with_hole.csv'),
     'large_with_many_holes': (40, 'input_large_with_many_holes.csv'),
 }
 

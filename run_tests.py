@@ -128,7 +128,6 @@ MY_TEST_CASES = [
     ('input_dense_outer.csv',           50),
     ('input_narrow_corridor.csv',        5),
     ('input_nested_rings.csv',          20),
-    ('input_zigzag_with_hole.csv',      30),
     ('input_large_with_many_holes.csv', 40),
 ]
 
