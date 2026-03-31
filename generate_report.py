@@ -34,14 +34,15 @@ DESCS_JSON   = os.path.join(ROOT, 'dataset_descriptions.json')
 
 def load_descriptions():
     if not os.path.exists(DESCS_JSON):
-        return {}, {}, {}
+        return {}, {}, {}, []
     with open(DESCS_JSON, encoding='utf-8') as f:
         data = json.load(f)
     return (data.get('provided', {}),
             data.get('custom', {}),
-            data.get('curve_fits', {}))
+            data.get('curve_fits', {}),
+            data.get('discussion', []))
 
-PROVIDED_DESCS, CUSTOM_DESCS, _CURVE_FITS_PLACEHOLDER = load_descriptions()
+PROVIDED_DESCS, CUSTOM_DESCS, _CURVE_FITS_PLACEHOLDER, _DISCUSSION_PLACEHOLDER = load_descriptions()
 
 # ── test case metadata ────────────────────────────────────────────────────────
 
@@ -366,6 +367,11 @@ details { margin-top: .8rem; }
 summary { cursor: pointer; color: var(--primary); font-size: .9rem; }
 summary:hover { text-decoration: underline; }
 footer { text-align: center; padding: 2rem; font-size: .8rem; color: var(--muted); }
+
+/* discussion */
+.discussion-entry { margin-bottom: 1.2rem; }
+.discussion-entry h3 { color: var(--primary); margin-bottom: .35rem; }
+.discussion-entry p  { font-size: .9rem; line-height: 1.65; color: var(--text); }
 '''
 
 
@@ -374,7 +380,7 @@ def build_html():
     test_data = load_test_results()
 
     # Re-load descriptions at build time so curve_fits are up to date
-    _, _, curve_fits = load_descriptions()
+    _, _, curve_fits, discussion = load_descriptions()
 
     nav_links = ''.join([
         '<a href="#test-results">Test Results</a>',
@@ -384,6 +390,7 @@ def build_html():
         '<a href="#time-memory">Runtime vs Memory</a>',
         '<a href="#memory-size">Memory vs Input Size</a>',
         '<a href="#curve-fits">Curve Fits</a>',
+        '<a href="#discussion">Discussion</a>',
         '<a href="#datasets">Dataset Descriptions</a>',
         '<a href="#provided-viz">Provided Visualizations</a>',
         '<a href="#custom-viz">Custom Visualizations</a>',
@@ -445,6 +452,25 @@ def build_html():
       {fit_table(curve_fits.get('memory',  {}), 'Memory scaling')}
     </section>'''
 
+    # ── discussion / interpretation section ──────────────────────────────────
+    if discussion:
+        discussion_items = ''
+        for entry in discussion:
+            heading = h(entry.get('heading', ''))
+            text    = h(entry.get('text', ''))
+            discussion_items += f'''
+          <div class="discussion-entry">
+            <h3>{heading}</h3>
+            <p>{text}</p>
+          </div>'''
+        discussion_sec = f'''
+    <section id="discussion">
+      <h2>Discussion and Interpretation of Results</h2>
+      {discussion_items}
+    </section>'''
+    else:
+        discussion_sec = ''
+
     # ── dataset descriptions section ──────────────────────────────────────────
     def desc_rows(descs, names):
         rows = ''
@@ -457,7 +483,7 @@ def build_html():
                      f'</tr>')
         return rows
 
-    _, _, _ = load_descriptions()   # already loaded above
+    _, _, _ = load_descriptions()[:3]   # already loaded above
     datasets_sec = f'''
     <section id="datasets">
       <h2>Dataset Descriptions</h2>
@@ -516,6 +542,7 @@ def build_html():
   {time_sec}
   {mem_sec}
   {curve_fits_sec}
+  {discussion_sec}
   {datasets_sec}
   {provided_sec}
   {custom_sec}

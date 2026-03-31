@@ -103,6 +103,32 @@
       "challenge": "9 simultaneous rings with non-uniform per-vertex displacement costs. The simplifier must budget displacement across rings and handle irregular (non-convex) hole geometry with unequal removal costs."
     }
   },
+  "discussion": [
+    {
+      "heading": "Runtime Scaling",
+      "text": "Runtime increases overall with input size, but the spread at similar sizes shows that vertex count is not the only driver. For example, dense_outer has 400 input vertices yet finishes in about 0.03 s, while nested_rings (120 vertices) takes about 2.35 s and large_with_many_holes (148 vertices) takes about 18.08 s. This matches the algorithm's behavior: heap maintenance grows with the number of active vertices, but the hardest cases are dominated by rejected removals and repeated intersection checks against nearby or numerous rings. The fitted power law (k ≈ 0.41) is therefore best treated as a descriptive summary of this benchmark set, not as evidence of sub-linear asymptotic complexity; the expected worst-case behavior remains closer to O(n log n), with geometry controlling the constant factor."
+    },
+    {
+      "heading": "Memory Scaling",
+      "text": "Peak memory also rises overall with input size, but most small and medium cases sit in a narrow band of roughly 6-17 MB. The fitted exponent (k ≈ 0.21) looks shallow mainly because the measurements include fixed process overhead and only one very large case, original_09, that pushes memory to about 228 MB. This pattern still matches the data structure design: the heap and ring storage scale with the number of vertices, yet the absolute footprint stays modest until the input becomes very large. The fit is useful for describing the observed data, but the implementation should still be interpreted as using O(n) space in the underlying structures."
+    },
+    {
+      "heading": "How to Read the Displacement Plot",
+      "text": "The displacement figure contains one point per test case, not a sweep of many targets for the same polygon. That means it should be read as a cross-case comparison, not as a universal displacement-versus-target curve. Cases with the same nominal target still show very different displacement because raw areal displacement depends heavily on geometry scale, ring topology, and how far the input can legally be simplified. For instance, the original_* cases all target 99 vertices but span from about 4.31e6 to 1.38e9 displacement. The plot is therefore most useful for identifying which datasets are geometrically expensive to simplify, while within-case tradeoffs must be judged from the visualization and output quality, not from this scatter alone."
+    },
+    {
+      "heading": "Target Counts and Feasibility Limits",
+      "text": "A requested target is a goal, not a guarantee, because the simplifier must preserve a valid polygon at every step. The clearest examples are rectangle_with_two_holes (target 7, actual 11) and narrow_corridor (target 5, actual 6). In the first case, the three-ring topology already imposes a hard lower bound near three active vertices per ring, so the requested count is unattainable. In the second, the 3-unit clearance causes intersection checks to reject almost every remaining candidate once the shapes are moderately simplified. Recording both requested and actual output counts is therefore necessary to distinguish 'could not simplify further safely' from ordinary underperformance."
+    },
+    {
+      "heading": "What the Custom Cases Show",
+      "text": "The custom datasets confirm that topology matters more than raw vertex count. dense_outer stresses heap throughput with 400 near-collinear vertices, yet it runs quickly because it is a single smooth ring with no cross-ring interference. many_holes reaches its target exactly, showing that multiple rings are manageable when there is generous separation between them. nested_rings and large_with_many_holes are much harder even at lower vertex counts because many candidate chords must be checked against nearby or irregular holes, and large_with_many_holes is the clearest example: only 148 input vertices, but about 18.08 s runtime. narrow_corridor shows the same phenomenon at the extreme small end, where geometry rather than size determines when simplification must stop."
+    },
+    {
+      "heading": "Overall Interpretation",
+      "text": "Taken together, the results support the main design goal of the greedy min-displacement approach: it consistently preserves valid topology, passes all provided tests, and improves on the reference displacement in 14 of the 15 provided cases. The main limitation is not raw throughput on large single-ring inputs, but pathological geometry with thin gaps, dense nesting, or many interacting holes. In other words, the implementation scales reasonably with input size, but its hardest cases are defined by geometric constraints rather than by vertex count alone."
+    }
+  ],
   "curve_fits": {
     "runtime": {
       "power": {
