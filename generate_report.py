@@ -26,7 +26,6 @@ VIZ_DIR     = os.path.join(ROOT, 'visualization')
 DISP_DIR    = os.path.join(ROOT, 'displacement_vs_target')
 TIME_DIR    = os.path.join(ROOT, 'time_vs_memory')
 MEM_DIR     = os.path.join(ROOT, 'memory_vs_inputsize')
-REPORT_DIR  = os.path.join(ROOT, 'report')
 
 # ── test case metadata ────────────────────────────────────────────────────────
 
@@ -395,8 +394,7 @@ def build_html():
 
 
 def main():
-    os.makedirs(REPORT_DIR, exist_ok=True)
-    out_path = os.path.join(REPORT_DIR, 'index.html')
+    out_path = os.path.join(ROOT, 'report.html')
     print('Building report ...')
 
     content = build_html()
