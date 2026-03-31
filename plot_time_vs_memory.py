@@ -20,10 +20,11 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 
 # ── paths ────────────────────────────────────────────────────────────────────
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-SIMPLIFY   = os.path.join(SCRIPT_DIR, 'simplify')
-TEST_DIR   = os.path.join(SCRIPT_DIR, 'test_cases')
-OUT_DIR    = os.path.join(SCRIPT_DIR, 'time_vs_memory')
+SCRIPT_DIR   = os.path.dirname(os.path.abspath(__file__))
+SIMPLIFY     = os.path.join(SCRIPT_DIR, 'simplify')
+TEST_DIR     = os.path.join(SCRIPT_DIR, 'test_cases')
+MY_TEST_DIR  = os.path.join(SCRIPT_DIR, 'my_test_cases')
+OUT_DIR      = os.path.join(SCRIPT_DIR, 'time_vs_memory')
 
 # ── test cases ───────────────────────────────────────────────────────────────
 TEST_CASES = [
@@ -42,6 +43,15 @@ TEST_CASES = [
     ('original_08',                 'input_original_08.csv',                 99),
     ('original_09',                 'input_original_09.csv',                 99),
     ('original_10',                 'input_original_10.csv',                 99),
+]
+
+MY_TEST_CASES = [
+    ('many_holes',            'input_many_holes.csv',            37),
+    ('dense_outer',           'input_dense_outer.csv',           50),
+    ('narrow_corridor',       'input_narrow_corridor.csv',        5),
+    ('nested_rings',          'input_nested_rings.csv',          20),
+    ('zigzag_with_hole',      'input_zigzag_with_hole.csv',      30),
+    ('large_with_many_holes', 'input_large_with_many_holes.csv', 40),
 ]
 
 # ── measurement ──────────────────────────────────────────────────────────────
@@ -70,12 +80,12 @@ def parse_peak_rss_kb(stderr_text):
     return int(m.group(1)) if m else None
 
 
-def measure(name, input_file, target):
+def measure(name, input_file, target, test_dir=None):
     """
     Run simplify on input_file with the given target.
     Returns (wall_secs, peak_rss_mb) or (wall_secs, None) if RSS unavailable.
     """
-    input_path = os.path.join(TEST_DIR, input_file)
+    input_path = os.path.join(test_dir or TEST_DIR, input_file)
     cmd = build_cmd(input_path, target)
 
     t0 = time.perf_counter()
@@ -110,6 +120,12 @@ SHORT_LABELS = {
     'wavy_with_three_holes':       'wavy_3h',
     'lake_with_two_islands':       'lake_2i',
     **{f'original_{i:02d}': f'orig_{i:02d}' for i in range(1, 11)},
+    'many_holes':            'many_h',
+    'dense_outer':           'dense',
+    'narrow_corridor':       'narrow',
+    'nested_rings':          'nested',
+    'zigzag_with_hole':      'zigzag',
+    'large_with_many_holes': 'large_mh',
 }
 
 COLORS = [
@@ -184,15 +200,17 @@ def save_csv(results):
 # ── main ─────────────────────────────────────────────────────────────────────
 
 def main():
-    print(f"Measuring runtime and peak memory for {len(TEST_CASES)} test cases ...\n")
+    all_cases = [(n, f, t, TEST_DIR)    for n, f, t in TEST_CASES] + \
+                [(n, f, t, MY_TEST_DIR) for n, f, t in MY_TEST_CASES]
+    print(f"Measuring runtime and peak memory for {len(all_cases)} test cases ...\n")
     col = 36
     print(f"{'Test case':<{col}}  {'Time (s)':>10}  {'Peak mem (MB)':>14}")
     print('-' * (col + 28))
 
     results = []
-    for name, input_file, target in TEST_CASES:
+    for name, input_file, target, tdir in all_cases:
         print(f"  {name:<{col-2}}", end='  ', flush=True)
-        wall, mem = measure(name, input_file, target)
+        wall, mem = measure(name, input_file, target, tdir)
         t_str   = f'{wall:.4f}' if wall is not None else '  N/A  '
         mem_str = f'{mem:.2f}'  if mem  is not None else '  N/A  '
         print(f'{t_str:>10}  {mem_str:>14}')

@@ -18,6 +18,8 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 SIMPLIFY = os.path.join(SCRIPT_DIR, 'simplify')
 TEST_DIR = os.path.join(SCRIPT_DIR, 'test_cases')
 OUTPUT_DIR = os.path.join(SCRIPT_DIR, 'test_outputs')
+MY_TEST_DIR = os.path.join(SCRIPT_DIR, 'my_test_cases')
+MY_OUTPUT_DIR = os.path.join(SCRIPT_DIR, 'my_test_outputs')
 
 # Each entry: (input_file, target_vertices, expected_output_file)
 TEST_CASES = [
@@ -120,6 +122,43 @@ def run_test(input_file, target, expected_file):
     return True, f'area_in={act_area_in:.6e}  disp={act_disp:.6e}{disp_note}'
 
 
+# Custom test cases (no expected output — just run and save)
+MY_TEST_CASES = [
+    ('input_many_holes.csv',            37),
+    ('input_dense_outer.csv',           50),
+    ('input_narrow_corridor.csv',        5),
+    ('input_nested_rings.csv',          20),
+    ('input_zigzag_with_hole.csv',      30),
+    ('input_large_with_many_holes.csv', 40),
+]
+
+def run_custom(input_file, target):
+    """Run simplify on a custom test case and save output; no validation."""
+    input_path = os.path.join(MY_TEST_DIR, input_file)
+    os.makedirs(MY_OUTPUT_DIR, exist_ok=True)
+    out_path = os.path.join(MY_OUTPUT_DIR, f"{os.path.splitext(input_file)[0]}_n{target}.txt")
+
+    if sys.platform == 'win32':
+        wsl_input    = input_path.replace('\\', '/').replace('C:', '/mnt/c').replace('c:', '/mnt/c')
+        wsl_simplify = SIMPLIFY.replace('\\', '/').replace('C:', '/mnt/c').replace('c:', '/mnt/c')
+        cmd = ['wsl', wsl_simplify, wsl_input, str(target)]
+    else:
+        cmd = [SIMPLIFY, input_path, str(target)]
+
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+    if result.returncode != 0:
+        return False, f"CRASHED (exit {result.returncode})\n  stderr: {result.stderr.strip()}"
+
+    with open(out_path, 'w', encoding='utf-8') as f:
+        f.write(result.stdout)
+
+    try:
+        _, _, disp = parse_summary(result.stdout)
+        return True, f'disp={disp:.6e}'
+    except ValueError:
+        return True, 'ran OK (no summary parsed)'
+
+
 def main():
     passed = 0
     failed = 0
@@ -146,6 +185,24 @@ def main():
 
     print('-' * (col + 30))
     print(f"Results: {passed} passed, {failed} failed out of {passed + failed} tests")
+
+    # ── Custom test cases (run-only, no validation) ───────────────────────────
+    print()
+    print(f"{'Custom Test':<{col}}  {'Result'}")
+    print('-' * (col + 30))
+
+    for input_file, target in MY_TEST_CASES:
+        name = input_file.replace('input_', '').replace('.csv', '') + f' (n={target})'
+        try:
+            ok, msg = run_custom(input_file, target)
+        except subprocess.TimeoutExpired:
+            ok, msg = False, 'TIMEOUT'
+        except Exception as e:
+            ok, msg = False, str(e)
+        status = 'OK  ' if ok else 'FAIL'
+        print(f"{name:<{col}}  {status}  {msg}")
+
+    print('-' * (col + 30))
     sys.exit(0 if failed == 0 else 1)
 
 

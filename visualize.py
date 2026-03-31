@@ -26,11 +26,13 @@ from matplotlib.patches import Polygon as MplPolygon
 from matplotlib.collections import PatchCollection
 
 # ── paths ────────────────────────────────────────────────────────────────────
-ROOT      = os.path.dirname(os.path.abspath(__file__))
-TEST_DIR  = os.path.join(ROOT, 'test_cases')
-OUT_DIR   = os.path.join(ROOT, 'test_outputs')
+ROOT         = os.path.dirname(os.path.abspath(__file__))
+TEST_DIR     = os.path.join(ROOT, 'test_cases')
+OUT_DIR      = os.path.join(ROOT, 'test_outputs')
+MY_TEST_DIR  = os.path.join(ROOT, 'my_test_cases')
+MY_OUT_DIR   = os.path.join(ROOT, 'my_test_outputs')
 
-# All test cases: name → (target, input_file, expected_file, my_output_file)
+# All provided test cases: name → (target, input_file, expected_file)
 TEST_CASES = {
     'rectangle_with_two_holes':    (7,  'input_rectangle_with_two_holes.csv',    'output_rectangle_with_two_holes.txt'),
     'cushion_with_hexagonal_hole': (13, 'input_cushion_with_hexagonal_hole.csv', 'output_cushion_with_hexagonal_hole.txt'),
@@ -39,6 +41,16 @@ TEST_CASES = {
     'lake_with_two_islands':       (17, 'input_lake_with_two_islands.csv',       'output_lake_with_two_islands.txt'),
     **{f'original_{i:02d}': (99, f'input_original_{i:02d}.csv', f'output_original_{i:02d}.txt')
        for i in range(1, 11)},
+}
+
+# Custom test cases (no expected output): name → (target, input_file)
+MY_TEST_CASES = {
+    'many_holes':          (37,  'input_many_holes.csv'),
+    'dense_outer':         (50,  'input_dense_outer.csv'),
+    'narrow_corridor':     (5,   'input_narrow_corridor.csv'),
+    'nested_rings':        (20,  'input_nested_rings.csv'),
+    'zigzag_with_hole':    (30,  'input_zigzag_with_hole.csv'),
+    'large_with_many_holes': (40, 'input_large_with_many_holes.csv'),
 }
 
 RING_COLORS = ['#2196F3', '#F44336', '#FF9800', '#4CAF50', '#9C27B0',
@@ -128,47 +140,67 @@ def draw_rings(ax, rings, title, show_vertices=True):
 # ── main ─────────────────────────────────────────────────────────────────────
 
 def visualize(name, open_after=True):
-    if name not in TEST_CASES:
+    is_custom = name in MY_TEST_CASES
+    if not is_custom and name not in TEST_CASES:
         print(f"Unknown test: {name!r}")
-        print("Available:", ', '.join(sorted(TEST_CASES)))
+        print("Provided:", ', '.join(sorted(TEST_CASES)))
+        print("Custom:  ", ', '.join(sorted(MY_TEST_CASES)))
         sys.exit(1)
 
-    target, inp_file, exp_file = TEST_CASES[name]
-    my_file = f"input_{name}_n{target}.txt"
-
-    inp_path = os.path.join(TEST_DIR, inp_file)
-    exp_path = os.path.join(TEST_DIR, exp_file)
-    my_path  = os.path.join(OUT_DIR,  my_file)
-
-    # Load data
-    input_rings = parse_csv_file(inp_path)
-
-    exp_rings, exp_disp = parse_output_file(exp_path)
-
-    my_rings, my_disp = None, None
-    if os.path.exists(my_path):
-        my_rings, my_disp = parse_output_file(my_path)
-    else:
-        print(f"My output not found: {my_path}")
-        print("Run python run_tests.py first to generate it.")
-
-    # Count vertices
     def vcount(rings):
         return sum(len(v) for v in rings.values()) if rings else 0
 
-    # Build titles
-    inp_title  = f"Input  ({vcount(input_rings)} vertices)"
-    my_title   = (f"My Output  ({vcount(my_rings)} verts)\n"
-                  f"disp = {my_disp:.4g}" if my_rings else "My Output\n(not generated)")
-    exp_title  = (f"Expected  ({vcount(exp_rings)} verts, target {target})\n"
-                  f"disp = {exp_disp:.4g}" if exp_disp is not None else f"Expected  ({vcount(exp_rings)} verts)")
+    if is_custom:
+        target, inp_file = MY_TEST_CASES[name]
+        my_file  = f"input_{name}_n{target}.txt"
+        inp_path = os.path.join(MY_TEST_DIR, inp_file)
+        my_path  = os.path.join(MY_OUT_DIR,  my_file)
 
-    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
-    fig.suptitle(f"Test: {name}", fontsize=13, fontweight='bold')
+        input_rings = parse_csv_file(inp_path)
+        my_rings, my_disp = None, None
+        if os.path.exists(my_path):
+            my_rings, my_disp = parse_output_file(my_path)
+        else:
+            print(f"My output not found: {my_path}")
+            print("Run python run_tests.py first to generate it.")
 
-    draw_rings(axes[0], input_rings, inp_title)
-    draw_rings(axes[1], my_rings if my_rings else {}, my_title)
-    draw_rings(axes[2], exp_rings, exp_title)
+        inp_title = f"Input  ({vcount(input_rings)} vertices)"
+        my_title  = (f"My Output  ({vcount(my_rings)} verts)\n"
+                     f"disp = {my_disp:.4g}" if my_rings else "My Output\n(not generated)")
+
+        fig, axes = plt.subplots(1, 2, figsize=(13, 6))
+        fig.suptitle(f"Custom Test: {name}  (target={target})", fontsize=13, fontweight='bold')
+        draw_rings(axes[0], input_rings, inp_title)
+        draw_rings(axes[1], my_rings if my_rings else {}, my_title)
+
+    else:
+        target, inp_file, exp_file = TEST_CASES[name]
+        my_file  = f"input_{name}_n{target}.txt"
+        inp_path = os.path.join(TEST_DIR, inp_file)
+        exp_path = os.path.join(TEST_DIR, exp_file)
+        my_path  = os.path.join(OUT_DIR,  my_file)
+
+        input_rings         = parse_csv_file(inp_path)
+        exp_rings, exp_disp = parse_output_file(exp_path)
+        my_rings, my_disp   = None, None
+        if os.path.exists(my_path):
+            my_rings, my_disp = parse_output_file(my_path)
+        else:
+            print(f"My output not found: {my_path}")
+            print("Run python run_tests.py first to generate it.")
+
+        inp_title = f"Input  ({vcount(input_rings)} vertices)"
+        my_title  = (f"My Output  ({vcount(my_rings)} verts)\n"
+                     f"disp = {my_disp:.4g}" if my_rings else "My Output\n(not generated)")
+        exp_title = (f"Expected  ({vcount(exp_rings)} verts, target {target})\n"
+                     f"disp = {exp_disp:.4g}" if exp_disp is not None
+                     else f"Expected  ({vcount(exp_rings)} verts)")
+
+        fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+        fig.suptitle(f"Test: {name}", fontsize=13, fontweight='bold')
+        draw_rings(axes[0], input_rings, inp_title)
+        draw_rings(axes[1], my_rings if my_rings else {}, my_title)
+        draw_rings(axes[2], exp_rings, exp_title)
 
     plt.tight_layout()
 
@@ -193,11 +225,13 @@ def visualize(name, open_after=True):
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
-        print("Available test cases:")
+        print("Provided test cases:")
         for name, (target, inp, exp) in sorted(TEST_CASES.items()):
             print(f"  {name}  (target={target})")
-        print("\nUsage: python visualize.py <test_name> [--open]")
-        print("  --open   open the PNG after saving (default: opens automatically)")
+        print("\nCustom test cases:")
+        for name, (target, inp) in sorted(MY_TEST_CASES.items()):
+            print(f"  {name}  (target={target})")
+        print("\nUsage: python visualize.py <test_name> [--no-open]")
         print("  --no-open  save without opening")
         sys.exit(0)
 

@@ -19,10 +19,11 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 
 # ── paths ────────────────────────────────────────────────────────────────────
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-SIMPLIFY   = os.path.join(SCRIPT_DIR, 'simplify')
-TEST_DIR   = os.path.join(SCRIPT_DIR, 'test_cases')
-OUT_DIR    = os.path.join(SCRIPT_DIR, 'memory_vs_inputsize')
+SCRIPT_DIR   = os.path.dirname(os.path.abspath(__file__))
+SIMPLIFY     = os.path.join(SCRIPT_DIR, 'simplify')
+TEST_DIR     = os.path.join(SCRIPT_DIR, 'test_cases')
+MY_TEST_DIR  = os.path.join(SCRIPT_DIR, 'my_test_cases')
+OUT_DIR      = os.path.join(SCRIPT_DIR, 'memory_vs_inputsize')
 
 # ── test cases ───────────────────────────────────────────────────────────────
 TEST_CASES = [
@@ -43,11 +44,20 @@ TEST_CASES = [
     ('original_10',                 'input_original_10.csv',                 99),
 ]
 
+MY_TEST_CASES = [
+    ('many_holes',            'input_many_holes.csv',            37),
+    ('dense_outer',           'input_dense_outer.csv',           50),
+    ('narrow_corridor',       'input_narrow_corridor.csv',        5),
+    ('nested_rings',          'input_nested_rings.csv',          20),
+    ('zigzag_with_hole',      'input_zigzag_with_hole.csv',      30),
+    ('large_with_many_holes', 'input_large_with_many_holes.csv', 40),
+]
+
 # ── input-size counting ───────────────────────────────────────────────────────
 
-def count_vertices(input_file):
+def count_vertices(input_file, test_dir=None):
     """Count total vertices in a CSV input file (rows with numeric ring_id)."""
-    path = os.path.join(TEST_DIR, input_file)
+    path = os.path.join(test_dir or TEST_DIR, input_file)
     count = 0
     with open(path, encoding='utf-8') as f:
         reader = csv.reader(f)
@@ -89,11 +99,11 @@ def parse_peak_rss_kb(stderr_text):
     return int(m.group(1)) if m else None
 
 
-def measure_memory(name, input_file, target):
+def measure_memory(name, input_file, target, test_dir=None):
     """
     Run simplify and return peak_rss_mb, or None on failure.
     """
-    input_path = os.path.join(TEST_DIR, input_file)
+    input_path = os.path.join(test_dir or TEST_DIR, input_file)
     cmd = build_cmd(input_path, target)
 
     try:
@@ -125,6 +135,12 @@ SHORT_LABELS = {
     'wavy_with_three_holes':       'wavy_3h',
     'lake_with_two_islands':       'lake_2i',
     **{f'original_{i:02d}': f'orig_{i:02d}' for i in range(1, 11)},
+    'many_holes':            'many_h',
+    'dense_outer':           'dense',
+    'narrow_corridor':       'narrow',
+    'nested_rings':          'nested',
+    'zigzag_with_hole':      'zigzag',
+    'large_with_many_holes': 'large_mh',
 }
 
 COLORS = [
@@ -195,16 +211,18 @@ def save_csv(results):
 # ── main ─────────────────────────────────────────────────────────────────────
 
 def main():
-    print(f"Measuring peak memory vs input size for {len(TEST_CASES)} test cases ...\n")
+    all_cases = [(n, f, t, TEST_DIR)     for n, f, t in TEST_CASES] + \
+                [(n, f, t, MY_TEST_DIR)  for n, f, t in MY_TEST_CASES]
+    print(f"Measuring peak memory vs input size for {len(all_cases)} test cases ...\n")
     col = 36
     print(f"{'Test case':<{col}}  {'Input verts':>12}  {'Peak mem (MB)':>14}")
     print('-' * (col + 30))
 
     results = []
-    for name, input_file, target in TEST_CASES:
+    for name, input_file, target, tdir in all_cases:
         print(f"  {name:<{col-2}}", end='  ', flush=True)
-        verts = count_vertices(input_file)
-        mem   = measure_memory(name, input_file, target)
+        verts = count_vertices(input_file, tdir)
+        mem   = measure_memory(name, input_file, target, tdir)
         v_str   = str(verts)
         mem_str = f'{mem:.2f}' if mem is not None else 'N/A'
         print(f'{v_str:>12}  {mem_str:>14}')
