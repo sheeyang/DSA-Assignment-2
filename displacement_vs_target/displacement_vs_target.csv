@@ -14,3 +14,8 @@ original_07,99,99,1.772360e+07
 original_08,99,99,4.700583e+06
 original_09,99,99,1.379889e+09
 original_10,99,99,1.311198e+07
+many_holes,37,37,8.080688e+04
+dense_outer,50,50,9.351667e+03
+narrow_corridor,5,6,3.175000e+04
+nested_rings,20,20,3.909631e+04
+large_with_many_holes,40,40,5.492921e+04
