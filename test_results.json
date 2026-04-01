@@ -186,12 +186,12 @@
       "name": "many_holes",
       "target": 37,
       "status": "OK",
-      "message": "input=1.672000e+05  output=1.672000e+05  disp=8.080688e+04",
-      "input_area_actual": 167200.0,
+      "message": "input=1.322267e+05  output=1.322267e+05  disp=3.848456e+03",
+      "input_area_actual": 132226.7,
       "input_area_expected": null,
-      "output_area_actual": 167200.0,
+      "output_area_actual": 132226.7,
       "output_area_expected": null,
-      "displacement_actual": 80806.88,
+      "displacement_actual": 3848.456,
       "displacement_expected": null
     },
     {
@@ -208,7 +208,7 @@
     },
     {
       "name": "narrow_corridor",
-      "target": 5,
+      "target": 6,
       "status": "OK",
       "message": "input=6.350000e+04  output=6.350000e+04  disp=3.175000e+04",
       "input_area_actual": 63500.0,

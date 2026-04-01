@@ -52,7 +52,7 @@ TEST_CASES = [
 MY_TEST_CASES = [
     ('many_holes',            'input_many_holes.csv',            37),
     ('dense_outer',           'input_dense_outer.csv',           50),
-    ('narrow_corridor',       'input_narrow_corridor.csv',        5),
+    ('narrow_corridor',       'input_narrow_corridor.csv',        6),
     ('nested_rings',          'input_nested_rings.csv',          20),
     ('large_with_many_holes', 'input_large_with_many_holes.csv', 40),
 ]

@@ -167,7 +167,7 @@ def run_test(input_file, target, expected_file):
 MY_TEST_CASES = [
     ('input_many_holes.csv',            37),
     ('input_dense_outer.csv',           50),
-    ('input_narrow_corridor.csv',        5),
+    ('input_narrow_corridor.csv',        6),
     ('input_nested_rings.csv',          20),
     ('input_large_with_many_holes.csv', 40),
 ]

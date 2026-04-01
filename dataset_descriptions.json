@@ -106,11 +106,11 @@
   "discussion": [
     {
       "heading": "Runtime Scaling",
-      "text": "Runtime increases overall with input size, but the spread at similar sizes shows that vertex count is not the only driver. For example, dense_outer has 400 input vertices yet finishes in about 0.03 s, while nested_rings (120 vertices) takes about 2.35 s and large_with_many_holes (148 vertices) takes about 18.08 s. This matches the algorithm's behavior: heap maintenance grows with the number of active vertices, but the hardest cases are dominated by rejected removals and repeated intersection checks against nearby or numerous rings. The fitted power law (k ≈ 0.41) is therefore best treated as a descriptive summary of this benchmark set, not as evidence of sub-linear asymptotic complexity; the expected worst-case behavior remains closer to O(n log n), with geometry controlling the constant factor."
+      "text": "Runtime increases overall with input size, but the spread at similar sizes shows that vertex count is not the only driver. For example, dense_outer has 400 input vertices yet finishes in about 0.03 s, while nested_rings (120 vertices) takes about 2.35 s and large_with_many_holes (148 vertices) takes about 18.08 s. This matches the algorithm's behavior: heap maintenance grows with the number of active vertices, but the hardest cases are dominated by rejected removals and repeated intersection checks against nearby or numerous rings. The fitted power law (k \u2248 0.41) is therefore best treated as a descriptive summary of this benchmark set, not as evidence of sub-linear asymptotic complexity; the expected worst-case behavior remains closer to O(n log n), with geometry controlling the constant factor."
     },
     {
       "heading": "Memory Scaling",
-      "text": "Peak memory also rises overall with input size, but most small and medium cases sit in a narrow band of roughly 6-17 MB. The fitted exponent (k ≈ 0.21) looks shallow mainly because the measurements include fixed process overhead and only one very large case, original_09, that pushes memory to about 228 MB. This pattern still matches the data structure design: the heap and ring storage scale with the number of vertices, yet the absolute footprint stays modest until the input becomes very large. The fit is useful for describing the observed data, but the implementation should still be interpreted as using O(n) space in the underlying structures."
+      "text": "Peak memory also rises overall with input size, but most small and medium cases sit in a narrow band of roughly 6-17 MB. The fitted exponent (k \u2248 0.21) looks shallow mainly because the measurements include fixed process overhead and only one very large case, original_09, that pushes memory to about 228 MB. This pattern still matches the data structure design: the heap and ring storage scale with the number of vertices, yet the absolute footprint stays modest until the input becomes very large. The fit is useful for describing the observed data, but the implementation should still be interpreted as using O(n) space in the underlying structures."
     },
     {
       "heading": "How to Read the Displacement Plot",
@@ -132,24 +132,24 @@
   "curve_fits": {
     "runtime": {
       "power": {
-        "c": 0.019956595748399926,
-        "k": 0.40872210628293093,
-        "label": "c\u00b7n^k  (c=1.996e-02, k=0.409)"
+        "c": 0.065396873200848,
+        "k": 0.25212105766666726,
+        "label": "c\u00b7n^k  (c=6.540e-02, k=0.252)"
       },
       "nlogn": {
-        "c": 8.329979443630776e-06,
-        "label": "c\u00b7n\u00b7log(n)  (c=8.330e-06)"
+        "c": 5.489267366198102e-06,
+        "label": "c\u00b7n\u00b7log(n)  (c=5.489e-06)"
       }
     },
     "memory": {
       "power": {
-        "c": 2.6748533031203605,
-        "k": 0.21385914225761493,
-        "label": "c\u00b7n^k  (c=2.675e+00, k=0.214)"
+        "c": 2.58854624792205,
+        "k": 0.21692537948249524,
+        "label": "c\u00b7n^k  (c=2.589e+00, k=0.217)"
       },
       "nlogn": {
-        "c": 4.385550001065808e-05,
-        "label": "c\u00b7n\u00b7log(n)  (c=4.386e-05)"
+        "c": 4.3950337834311806e-05,
+        "label": "c\u00b7n\u00b7log(n)  (c=4.395e-05)"
       }
     }
   }
