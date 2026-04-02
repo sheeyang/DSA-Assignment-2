@@ -104,17 +104,21 @@
     }
   },
   "graph_summaries": {
+    "displacement-scatter": {
+      "title": "Key Takeaways",
+      "text": "Displacement at a fixed target is primarily a measure of geometric difficulty, not just input size. Cases with close or interacting rings (narrow_corridor, nested_rings, large_with_many_holes) produce much higher displacement than simpler shapes at the same target. original_09 dominates as the hardest real-world case. The main takeaway is that the same target vertex count can be trivial for one polygon and extremely aggressive for another — displacement reflects shape complexity, not just how many vertices were removed."
+    },
     "displacement-sweep": {
-      "title": "Summary and Interpretation",
-      "text": "This is the rubric's areal displacement versus target vertex count plot. All three sweeps show that displacement decreases as more vertices are retained, but the rate depends strongly on topology. dense_outer drops smoothly from about 1.906e6 at 3 vertices to about 9.352e3 at 50 vertices and reaches 0 by 350 vertices, so a smooth single ring is easy to approximate once enough points remain. large_with_many_holes starts much higher, about 1.229e6 at 27 vertices and still 5.493e4 at 40 vertices, because nine interacting rings force large chord sweeps near the topology floor. many_holes decreases more gently, from about 8.337e4 at 21 vertices to about 3.848e3 at 37 vertices, showing that multiple well-separated holes are manageable when the rings are not packed tightly."
+      "title": "Key Takeaways",
+      "text": "Displacement decreases as more vertices are retained, but the rate depends heavily on topology. dense_outer (single smooth ring) degrades gracefully and uniformly. large_with_many_holes drops steeply near its topology floor — the first few vertices above the minimum resolve the largest chord sweeps across irregular holes, after which gains diminish quickly. many_holes stays relatively flat throughout because the inner rings are near-circular so all removals cost similarly. The overarching result is that multi-ring cases with tight or irregular geometry are much harder to simplify to a low target than smooth single-ring shapes."
     },
     "runtime-size": {
-      "title": "Summary and Interpretation",
-      "text": "Runtime increases overall with input size, and the fitted curves summarize that trend, but the spread between cases shows that vertex count is not the only driver. dense_outer has 400 vertices yet finishes in about 0.090 s, while nested_rings has only 120 vertices and takes about 1.547 s, and large_with_many_holes has 148 vertices and takes about 5.412 s. That gap comes from rejected removals and repeated intersection checks on nearby or numerous rings. The fitted power law, c*n^0.252, is therefore descriptive for this benchmark set rather than evidence of sub-linear asymptotic complexity; the implementation still behaves more like O(n log n) with geometry dominating the constant factor."
+      "title": "Key Takeaways",
+      "text": "Both fitted models (c·n^0.252 and c·n·log(n)) broadly follow the trend, but neither fits tightly because vertex count is not the only cost driver. Cases with close or numerous rings take far longer than their size would suggest: nested_rings (120 vertices, 1.547 s) and large_with_many_holes (148 vertices, 5.412 s) are both slower than dense_outer (400 vertices, 0.090 s). The extra cost comes from repeated cross-ring intersection checks and rejected candidate removals. The low apparent exponent reflects a fixed ~0.090 s startup cost that floors small cases. Overall, the algorithm scales reasonably with size but geometry and topology dominate runtime for hard inputs."
     },
     "memory-size": {
-      "title": "Summary and Interpretation",
-      "text": "Peak memory also rises overall with input size, but most small and medium cases stay in a narrow band of about 6 to 17 MB. The custom cases are representative: many_holes uses 6.375 MB, dense_outer uses 5.875 MB, nested_rings uses 7.125 MB, and large_with_many_holes uses 6.559 MB. The large jump comes from the biggest provided input, original_09, which reaches about 228.672 MB. So the fitted exponent, about 0.217, should be read mainly as a compact description of the current measurements; the underlying heap and ring structures still scale roughly linearly in space."
+      "title": "Key Takeaways",
+      "text": "Both fitted models (c·n^0.217 and c·n·log(n)) capture the upward trend, but the apparent exponent is shallow because a fixed ~6 MB process overhead floors all small cases. Most inputs stay in a narrow 6 to 17 MB band, and memory only grows significantly for very large inputs — original_09 (409,998 vertices) reaches about 229 MB. This is consistent with O(n) memory usage in the heap and ring storage once the fixed overhead is no longer dominant. Memory is not a practical bottleneck for any of the custom datasets tested."
     }
   },
   "discussion": [

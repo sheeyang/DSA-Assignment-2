@@ -542,6 +542,7 @@ def build_html():
         os.path.join(DISP_DIR, 'displacement_vs_target.png'),
         os.path.join(DISP_DIR, 'displacement_vs_target.csv'),
         'displacement-scatter',
+        graph_summaries.get('displacement-scatter'),
     )
 
     disp_sweep_sec = plot_section(
