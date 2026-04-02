@@ -32,7 +32,7 @@ This repository contains a C++ polygon simplifier, Python test/experiment runner
 | File / Directory | Description |
 |---|---|
 | `report.html` | Generated HTML report — open in browser |
-| `dataset_descriptions.json` | Descriptions and curve-fit notes used by the report |
+| `report_content.json` | Dataset descriptions, graph summaries, and curve-fit notes used by the report |
 | `test_results.json` | JSON summary produced by `run_tests.py` |
 | `test_cases/` | Provided input CSVs and expected output files |
 | `test_outputs/` | Outputs produced by `run_tests.py` for provided cases |
@@ -189,7 +189,7 @@ The report includes:
 - Summary table (displacement, runtime, memory, input size)
 - All three performance plots
 - Per-test visualizations grouped by category (provided + custom)
-- Custom dataset descriptions from `dataset_descriptions.json`
+- Custom dataset descriptions and graph summaries from `report_content.json`
 
 ## Run The Simplifier Directly
 

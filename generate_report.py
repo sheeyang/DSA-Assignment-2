@@ -29,21 +29,24 @@ DISP_DIR    = os.path.join(ROOT, 'displacement_vs_target')
 TIME_DIR    = os.path.join(ROOT, 'time_vs_memory')
 MEM_DIR     = os.path.join(ROOT, 'memory_vs_inputsize')
 RESULTS_JSON = os.path.join(ROOT, 'test_results.json')
-DESCS_JSON   = os.path.join(ROOT, 'dataset_descriptions.json')
+REPORT_CONTENT_JSON = os.path.join(ROOT, 'report_content.json')
 
-# ── load dataset descriptions from JSON ──────────────────────────────────────
+# ── load report content from JSON ────────────────────────────────────────────
 
-def load_descriptions():
-    if not os.path.exists(DESCS_JSON):
-        return {}, {}, {}, []
-    with open(DESCS_JSON, encoding='utf-8') as f:
+def load_report_content():
+    if not os.path.exists(REPORT_CONTENT_JSON):
+        return {}, {}, {}, {}, []
+    with open(REPORT_CONTENT_JSON, encoding='utf-8') as f:
         data = json.load(f)
-    return (data.get('provided', {}),
-            data.get('custom', {}),
-            data.get('curve_fits', {}),
-            data.get('discussion', []))
+    return (
+        data.get('provided', {}),
+        data.get('custom', {}),
+        data.get('graph_summaries', {}),
+        data.get('curve_fits', {}),
+        data.get('discussion', []),
+    )
 
-PROVIDED_DESCS, CUSTOM_DESCS, _CURVE_FITS_PLACEHOLDER, _DISCUSSION_PLACEHOLDER = load_descriptions()
+PROVIDED_DESCS, CUSTOM_DESCS, _GRAPH_SUMMARIES_PLACEHOLDER, _CURVE_FITS_PLACEHOLDER, _DISCUSSION_PLACEHOLDER = load_report_content()
 
 # ── test case metadata ────────────────────────────────────────────────────────
 
@@ -281,11 +284,32 @@ def merged(name):
 
 # ── HTML generation ───────────────────────────────────────────────────────────
 
-def plot_section(title, img_path, csv_path, anchor):
+def render_plot_summary(summary):
+    if not summary:
+        return ''
+
+    title = summary.get('title', 'Summary and Interpretation')
+    paragraphs = summary.get('paragraphs')
+    if not paragraphs:
+        text = summary.get('text', '')
+        paragraphs = [text] if text else []
+    if not paragraphs:
+        return ''
+
+    body = ''.join(f'<p>{h(paragraph)}</p>' for paragraph in paragraphs if paragraph)
+    return f'''
+      <div class="plot-summary">
+        <h3>{h(title)}</h3>
+        {body}
+      </div>'''
+
+
+def plot_section(title, img_path, csv_path, anchor, summary=None):
     uri = img_b64(img_path)
     rows = load_csv(csv_path)
     img_html = (f'<img src="{uri}" alt="{h(title)}" class="plot-img">'
                 if uri else '<p class="missing">Image not generated yet — run the plot script first.</p>')
+    summary_html = render_plot_summary(summary)
 
     # build table from CSV
     if rows:
@@ -309,6 +333,7 @@ def plot_section(title, img_path, csv_path, anchor):
     <section id="{anchor}">
       <h2>{h(title)}</h2>
       <div class="plot-wrap">{img_html}</div>
+            {summary_html}
       <details>
         <summary>Raw data</summary>
         {table_html}
@@ -420,6 +445,10 @@ tr:hover td { background: #e8f4fd; }
 /* plots */
 .plot-wrap { text-align: center; margin: .5rem 0 1rem; }
 .plot-img  { max-width: 100%; border: 1px solid var(--border); border-radius: 4px; }
+.plot-summary { font-size: .9rem; background: #e8f4fd; border-left: 3px solid var(--primary);
+                padding: .75rem .9rem; border-radius: 4px; margin: 0 0 1rem; }
+.plot-summary h3 { color: var(--primary); font-size: .98rem; margin: 0 0 .35rem; }
+.plot-summary p + p { margin-top: .55rem; }
 
 /* viz grid */
 .viz-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(560px, 1fr)); gap: 1.5rem; }
@@ -468,8 +497,8 @@ def build_html():
     now = datetime.now().strftime('%Y-%m-%d %H:%M')
     test_data = load_test_results()
 
-    # Re-load descriptions at build time so curve_fits are up to date
-    _, _, curve_fits, discussion = load_descriptions()
+    # Re-load report content at build time so summaries and curve fits are up to date
+    _, _, graph_summaries, curve_fits, discussion = load_report_content()
 
     nav_links = ''.join([
         '<a href="#test-results">Test Results</a>',
@@ -520,12 +549,14 @@ def build_html():
         os.path.join(DISP_DIR, 'displacement_sweep.png'),
         os.path.join(DISP_DIR, 'displacement_sweep.csv'),
         'displacement-sweep',
+        graph_summaries.get('displacement-sweep'),
     )
     runtime_size_sec = plot_section(
         'Runtime vs Input Size (with curve fits)',
         os.path.join(TIME_DIR, 'runtime_vs_inputsize.png'),
         os.path.join(TIME_DIR, 'time_vs_memory.csv'),
         'runtime-size',
+        graph_summaries.get('runtime-size'),
     )
     time_sec = plot_section(
         'Wall-Clock Runtime vs Peak Memory Usage',
@@ -538,6 +569,7 @@ def build_html():
         os.path.join(MEM_DIR, 'memory_vs_inputsize.png'),
         os.path.join(MEM_DIR, 'memory_vs_inputsize.csv'),
         'memory-size',
+        graph_summaries.get('memory-size'),
     )
 
     # ── curve fits section ────────────────────────────────────────────────────
@@ -596,7 +628,6 @@ def build_html():
             rows += '</tr>'
         return rows
 
-    _, _, _ = load_descriptions()[:3]   # already loaded above
     datasets_sec = f'''
     <section id="datasets">
       <h2>Dataset Descriptions</h2>

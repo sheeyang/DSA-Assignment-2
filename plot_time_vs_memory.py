@@ -297,8 +297,8 @@ def save_csv(results):
 
 
 def save_curve_fits(fit_runtime, fit_memory):
-    """Persist curve-fit results to dataset_descriptions.json under 'curve_fits'."""
-    desc_path = os.path.join(SCRIPT_DIR, 'dataset_descriptions.json')
+    """Persist curve-fit results to report_content.json under 'curve_fits'."""
+    desc_path = os.path.join(SCRIPT_DIR, 'report_content.json')
     if os.path.exists(desc_path):
         with open(desc_path, encoding='utf-8') as f:
             data = json.load(f)
@@ -310,7 +310,7 @@ def save_curve_fits(fit_runtime, fit_memory):
     }
     with open(desc_path, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=2)
-    print(f"Saved curve fits → dataset_descriptions.json")
+    print(f"Saved curve fits → report_content.json")
 
 
 # ── main ─────────────────────────────────────────────────────────────────────

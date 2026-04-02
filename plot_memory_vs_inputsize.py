@@ -7,9 +7,9 @@ Counts vertices in each input CSV, then runs simplify with /usr/bin/time -v
 (via WSL on Windows) to capture peak RSS.
 
 Output:
-    memory_vs_inputsize/memory_vs_inputsize.png
-    memory_vs_inputsize/memory_vs_inputsize.csv
-  + curve_fits.memory written to dataset_descriptions.json
+        memory_vs_inputsize/memory_vs_inputsize.png
+        memory_vs_inputsize/memory_vs_inputsize.csv
+    + curve_fits.memory written to report_content.json
 """
 
 import sys
@@ -262,8 +262,8 @@ def save_csv(results):
 
 
 def save_memory_fits(fit_info):
-    """Merge memory curve-fit results into dataset_descriptions.json."""
-    desc_path = os.path.join(SCRIPT_DIR, 'dataset_descriptions.json')
+    """Merge memory curve-fit results into report_content.json."""
+    desc_path = os.path.join(SCRIPT_DIR, 'report_content.json')
     if os.path.exists(desc_path):
         with open(desc_path, encoding='utf-8') as f:
             data = json.load(f)
@@ -274,7 +274,7 @@ def save_memory_fits(fit_info):
     data['curve_fits']['memory'] = fit_info
     with open(desc_path, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=2)
-    print(f"Saved memory curve fits → dataset_descriptions.json")
+    print(f"Saved memory curve fits → report_content.json")
 
 
 # ── main ─────────────────────────────────────────────────────────────────────

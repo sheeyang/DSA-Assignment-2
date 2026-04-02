@@ -8,7 +8,7 @@
     "cushion_with_hexagonal_hole": {
       "short": "Cushion with hexagonal hole",
       "property": "Curved outer boundary with a regular polygonal hole",
-      "challenge": "The hexagon's flat edges create large triangular displacement pockets \u2014 the simplifier must avoid removing the vertices that define those flat sides."
+      "challenge": "The hexagon's flat edges create large triangular displacement pockets - the simplifier must avoid removing the vertices that define those flat sides."
     },
     "blob_with_two_holes": {
       "short": "Blob with two holes",
@@ -78,51 +78,53 @@
   },
   "custom": {
     "many_holes": {
-      "short": "Many holes \u2014 6 circular holes in a 3\u00d72 grid",
+      "short": "Many holes - 6 circular holes in a 3x2 grid",
       "property": "High hole count (7 simultaneous rings)",
       "challenge": "The algorithm must preserve all 6 holes without accidentally merging or collapsing any ring. Managing a shared priority queue across 7 rings with equal budget pressure tests hole-count scalability."
     },
     "dense_outer": {
-      "short": "High vertex count \u2014 400-vertex sinusoidal ring",
-      "property": "High vertex count on a single ring (r = 1000 + 80\u00b7sin(8t), 400 samples)",
+      "short": "High vertex count - 400-vertex sinusoidal ring",
+      "property": "High vertex count on a single ring (r = 1000 + 80*sin(8t), 400 samples)",
       "challenge": "Many near-collinear points with small but non-zero displacement. The simplifier must pick the globally cheapest removals without greedily eliminating almost-free vertices that block better savings later. Stresses heap throughput."
     },
     "narrow_corridor": {
-      "short": "Narrow gap \u2014 3-unit clearance between hole and outer ring",
+      "short": "Narrow gap - 3-unit clearance between hole and outer ring",
       "property": "Near-degenerate topology: hole almost touches outer boundary",
       "challenge": "The clearance (3 units) is smaller than a typical simplification step, so the algorithm must detect when a chord would intersect the other ring and halt early. Tests geometric constraint enforcement."
     },
     "nested_rings": {
-      "short": "Near-degenerate nesting \u2014 inner r=400, outer r=500",
+      "short": "Near-degenerate nesting - inner r=400, outer r=500",
       "property": "Thin annulus: outer ring and hole are geometrically close at all angles",
       "challenge": "Simplifying either ring risks sweeping a simplified chord across the other ring. Requires careful per-triangle displacement accounting and intersection detection around the full circumference."
     },
     "large_with_many_holes": {
-      "short": "Large + many holes \u2014 100-vertex outer, 8 irregular 6-vertex holes",
+      "short": "Large + many holes - 100-vertex outer, 8 irregular 6-vertex holes",
       "property": "Combination of high vertex count and many holes with irregular hole shapes",
       "challenge": "9 simultaneous rings with non-uniform per-vertex displacement costs. The simplifier must budget displacement across rings and handle irregular (non-convex) hole geometry with unequal removal costs."
     }
   },
+  "graph_summaries": {
+    "displacement-sweep": {
+      "title": "Summary and Interpretation",
+      "text": "This is the rubric's areal displacement versus target vertex count plot. All three sweeps show that displacement decreases as more vertices are retained, but the rate depends strongly on topology. dense_outer drops smoothly from about 1.906e6 at 3 vertices to about 9.352e3 at 50 vertices and reaches 0 by 350 vertices, so a smooth single ring is easy to approximate once enough points remain. large_with_many_holes starts much higher, about 1.229e6 at 27 vertices and still 5.493e4 at 40 vertices, because nine interacting rings force large chord sweeps near the topology floor. many_holes decreases more gently, from about 8.337e4 at 21 vertices to about 3.848e3 at 37 vertices, showing that multiple well-separated holes are manageable when the rings are not packed tightly."
+    },
+    "runtime-size": {
+      "title": "Summary and Interpretation",
+      "text": "Runtime increases overall with input size, and the fitted curves summarize that trend, but the spread between cases shows that vertex count is not the only driver. dense_outer has 400 vertices yet finishes in about 0.090 s, while nested_rings has only 120 vertices and takes about 1.547 s, and large_with_many_holes has 148 vertices and takes about 5.412 s. That gap comes from rejected removals and repeated intersection checks on nearby or numerous rings. The fitted power law, c*n^0.252, is therefore descriptive for this benchmark set rather than evidence of sub-linear asymptotic complexity; the implementation still behaves more like O(n log n) with geometry dominating the constant factor."
+    },
+    "memory-size": {
+      "title": "Summary and Interpretation",
+      "text": "Peak memory also rises overall with input size, but most small and medium cases stay in a narrow band of about 6 to 17 MB. The custom cases are representative: many_holes uses 6.375 MB, dense_outer uses 5.875 MB, nested_rings uses 7.125 MB, and large_with_many_holes uses 6.559 MB. The large jump comes from the biggest provided input, original_09, which reaches about 228.672 MB. So the fitted exponent, about 0.217, should be read mainly as a compact description of the current measurements; the underlying heap and ring structures still scale roughly linearly in space."
+    }
+  },
   "discussion": [
     {
-      "heading": "Runtime Scaling",
-      "text": "Runtime increases overall with input size, but the spread at similar sizes shows that vertex count is not the only driver. For example, dense_outer has 400 input vertices yet finishes in about 0.03 s, while nested_rings (120 vertices) takes about 2.35 s and large_with_many_holes (148 vertices) takes about 18.08 s. This matches the algorithm's behavior: heap maintenance grows with the number of active vertices, but the hardest cases are dominated by rejected removals and repeated intersection checks against nearby or numerous rings. The fitted power law (k \u2248 0.41) is therefore best treated as a descriptive summary of this benchmark set, not as evidence of sub-linear asymptotic complexity; the expected worst-case behavior remains closer to O(n log n), with geometry controlling the constant factor."
-    },
-    {
-      "heading": "Memory Scaling",
-      "text": "Peak memory also rises overall with input size, but most small and medium cases sit in a narrow band of roughly 6-17 MB. The fitted exponent (k \u2248 0.21) looks shallow mainly because the measurements include fixed process overhead and only one very large case, original_09, that pushes memory to about 228 MB. This pattern still matches the data structure design: the heap and ring storage scale with the number of vertices, yet the absolute footprint stays modest until the input becomes very large. The fit is useful for describing the observed data, but the implementation should still be interpreted as using O(n) space in the underlying structures."
-    },
-    {
-      "heading": "How to Read the Displacement Plot",
-      "text": "Two displacement figures are provided. The cross-case scatter has one point per test case at its fixed target; it shows geometric difficulty across datasets but is not a displacement-versus-target curve for any single polygon. The per-polygon sweep (plot c) addresses this directly: three custom datasets are each simplified at 10-14 different target counts, ranging from near the topology minimum up to the full input vertex count. The x-axis is inverted so the rightmost edge represents maximal simplification. For dense_outer (single ring, 400 vertices) displacement falls smoothly from ~1.9e6 at 3 vertices to near zero around 350 vertices, confirming that the ring is geometrically easy to approximate once enough vertices are retained. For large_with_many_holes (9 rings, 148 vertices) displacement drops sharply near the topology floor of 27 vertices, showing that the 8 hole rings force large chord sweeps when pushed to their minimums. For many_holes (7 rings, 76 vertices) displacement changes very slowly across the full range because the outer ring has only 4 vertices and the inner rings are already near-circular; most of the budget is consumed maintaining ring integrity rather than geometric fidelity."
-    },
-    {
       "heading": "Target Counts and Feasibility Limits",
-      "text": "A requested target is a goal, not a guarantee, because the simplifier must preserve a valid polygon at every step. The clearest examples are rectangle_with_two_holes (target 7, actual 11) and narrow_corridor (target 5, actual 6). In the first case, the three-ring topology already imposes a hard lower bound near three active vertices per ring, so the requested count is unattainable. In the second, the 3-unit clearance causes intersection checks to reject almost every remaining candidate once the shapes are moderately simplified. Recording both requested and actual output counts is therefore necessary to distinguish 'could not simplify further safely' from ordinary underperformance."
+      "text": "A requested target is a goal, not a guarantee, because the simplifier must preserve a valid polygon at every step. The clearest fixed-target example is rectangle_with_two_holes, where the requested target is 7 but the actual output remains at 11 because the three-ring topology already imposes a hard lower bound near three active vertices per ring. narrow_corridor shows the same phenomenon in a different way: once the 3-unit clearance becomes the limiting constraint, intersection checks reject almost every remaining candidate. Recording both requested and actual output counts is therefore necessary to distinguish safe early termination from ordinary underperformance."
     },
     {
       "heading": "What the Custom Cases Show",
-      "text": "The custom datasets confirm that topology matters more than raw vertex count. dense_outer stresses heap throughput with 400 near-collinear vertices, yet it runs quickly because it is a single smooth ring with no cross-ring interference. many_holes reaches its target exactly, showing that multiple rings are manageable when there is generous separation between them. nested_rings and large_with_many_holes are much harder even at lower vertex counts because many candidate chords must be checked against nearby or irregular holes, and large_with_many_holes is the clearest example: only 148 input vertices, but about 18.08 s runtime. narrow_corridor shows the same phenomenon at the extreme small end, where geometry rather than size determines when simplification must stop."
+      "text": "The custom datasets confirm that topology matters more than raw vertex count. dense_outer stresses heap throughput with 400 near-collinear vertices, yet it runs quickly because it is a single smooth ring with no cross-ring interference. many_holes reaches its target exactly, showing that multiple rings are manageable when there is generous separation between them. nested_rings and large_with_many_holes are much harder even at lower vertex counts because many candidate chords must be checked against nearby or irregular holes, and large_with_many_holes is the clearest example: only 148 input vertices, but about 5.412 s runtime. narrow_corridor shows the same phenomenon at the extreme small end, where geometry rather than size determines when simplification must stop."
     },
     {
       "heading": "Overall Interpretation",
@@ -134,22 +136,22 @@
       "power": {
         "c": 0.065396873200848,
         "k": 0.25212105766666726,
-        "label": "c\u00b7n^k  (c=6.540e-02, k=0.252)"
+        "label": "c*n^k  (c=6.540e-02, k=0.252)"
       },
       "nlogn": {
         "c": 5.489267366198102e-06,
-        "label": "c\u00b7n\u00b7log(n)  (c=5.489e-06)"
+        "label": "c*n*log(n)  (c=5.489e-06)"
       }
     },
     "memory": {
       "power": {
         "c": 2.58854624792205,
         "k": 0.21692537948249524,
-        "label": "c\u00b7n^k  (c=2.589e+00, k=0.217)"
+        "label": "c*n^k  (c=2.589e+00, k=0.217)"
       },
       "nlogn": {
         "c": 4.3950337834311806e-05,
-        "label": "c\u00b7n\u00b7log(n)  (c=4.395e-05)"
+        "label": "c*n*log(n)  (c=4.395e-05)"
       }
     }
   }
